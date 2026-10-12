@@ -15,6 +15,14 @@ For the first time the user's Android Wine export contains **both** opt-in nativ
 - DXVK has 117 `driver_retry` events (`first_vkresult=-2 retry_vkresult=-2 recovered=0`), eight `pool_exhausted` reports and four final resource allocation errors. DXVK `pool_experiment=0` for this run. DXVK's final tracked allocation is around **4,008 MiB**. The reported Vulkan driver `VK_EXT_memory_budget` exceeds the used amount at failure, which is **not a guarantee that a new KGSL BO can be allocated**.
 - DXGI log reports only EDID/color metadata fallbacks. The accompanying `pluvia_crash_2026-10-06_06-51-57` is historical and documents an Android `UnsatisfiedLinkError` in `GPUImage`; it is not this driver's root cause.
 
+## KGSL request flags decoded against comparable Mesa headers
+
+In the matched-style Mesa KGSL header, `KGSL_CACHEMODE_SHIFT=26`, `KGSL_CACHEMODE_WRITEBACK=3`, and `KGSL_MEMFLAGS_IOCOHERENT=(1ULL<<31)`. Therefore `0x0c000000` is the **writeback cache hint**, while `0x8c000000` is the **same writeback mode with IO-coherent access requested**. `KGSL_MEMFLAGS_FORCE_32BIT=(1ULL<<32)` and `KGSL_MEMFLAGS_USE_CPU_MAP=(1ULL<<28)` are **absent** from these recorded request flags. The exact header and effective semantics should still be pinned to this driver's built Mesa source and Samsung's KGSL kernel variant. Both coherency modes returned `ENOMEM`; a simple cache-mode/host-coherence discrepancy is not enough to explain the failures.
+
+Relevant comparable source:
+- [Turnip KGSL request flag construction](https://github.com/DsoTsin/mesa-manet/blob/master/src/freedreno/vulkan/tu_knl_kgsl.cc) around `kgsl_bo_init` (sets `KGSL_MEMFLAGS_IOCOHERENT`, cache mode and conditional FORCE_32BIT).
+- [KGSL flag definitions](https://github.com/DsoTsin/mesa-manet/blob/master/src/freedreno/vulkan/msm_kgsl.h).
+
 ## Confidence table
 
 | Statement | Confidence |
