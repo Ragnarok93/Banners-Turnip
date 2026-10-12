@@ -78,8 +78,14 @@ def instrument_tu_device(source: str) -> str:
     candidates = []
     for candidate in branches:
         nearby = body[candidate.end():candidate.end() + 650]
-        if ("tu_memory_emit_report" in nearby
-                and "vk_device_memory_destroy" in nearby
+        # The failed BO allocation block starts with the destructor call
+        # followed immediately by the Vulkan memory failure report. Merely
+        # finding those names later would also match an earlier AHB block.
+        if (re.match(
+                r"\\s*vk_device_memory_destroy\\s*\\(\\s*&device->vk\\s*,"
+                r"\\s*pAllocator\\s*,\\s*&mem->vk\\s*\\)\\s*;"
+                r"\\s*tu_memory_emit_report",
+                nearby)
                 and "return result;" in nearby):
             candidates.append(candidate)
     if len(candidates) != 1:
