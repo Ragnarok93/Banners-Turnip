@@ -47,3 +47,16 @@ Eight bounded `FF7R-A650-KGSL-PRESSURE stage=alloc_enomem` records, at Wine log 
 Cross-links: [DXVK tracked allocation analysis](https://github.com/Ragnarok93/dxvk-SD865/blob/feature/ff7r-sd865-architecture-20261011/docs/FF7R-SD865-DXGI-REPORTED-VRAM-VS-VULKAN-OOM-20261012.md), [GameNative DXVK_CONFIG findings](https://github.com/Ragnarok93/GameNative/blob/research/ff7r-vram-config-20261012/docs/investigations/FF7R-SD865-VRAM-CONFIG-PROPAGATION-20261012.md), [FEX bounded evidence](https://github.com/Ragnarok93/FEX/blob/research/ff7r-memory-triage-20261012/docs/investigations/FF7R-SD865-FEX2610-NONCAUSAL-TRIAGE-20261012.md).
 
 **Confidence:** Real native `ENOMEM`, low `MemAvailable` and request sizes are observed. Physical-memory scarcity is the leading hypothesis, not yet a definitive root-cause proof.
+
+## Corrected pressure diagnostic V11: CI and archive validation
+
+The follow-up driver source was adjusted in `patches/a650/instrument_kgsl_oom.py` so that `/proc/meminfo` and `/proc/self/status` sampling is **inside** the same `TU_A650_KGSL_ALLOC_TRACE=1` branch as the native KGSL failure-only log, and is bounded to 128 recorded errors. Before this correction the pressure probe read `/proc` periodically on failures even if trace env was disabled. Now it performs no periodic `/proc` reads if tracing is off or event cap reached. The first and each 32nd logged KGSL failure has fields `mem_available_kib`, `mem_total_kib`, `swap_free_kib`, `committed_as_kib`, `cma_free_kib` (missing values `-1`), `vm_rss_kib`, `vm_swap_kib`, `vm_size_kib`, `rlimit_as_bytes`. The original errno is restored and the driver memory policy unchanged.
+
+**Verified build:** [GitHub Actions run 38194191376](https://github.com/Ragnarok93/Banners-Turnip/actions/runs/38194191376), SHA `5371791f0a43ea7ba8bee84ca5217285e4b2f30e`, all tests and pinned Mesa compilation passed. Downloaded and independently extracted/validated:
+
+- AdrenoTools installable inner ZIP: `mesa-turnip-main-A650-FF7R-KGSL-Diag-5371791f0a43-V11.zip`, **3,217,221 bytes**.
+- ZIP SHA-256: `5bb2d16ba1fff2b8a56e7594c32cd346fd133fc585544928e9834edb64580c26` (matches CI-provided .sha256).
+- Valid inner ZIP CRC: `meta.json` names `Banners Turnip A650 FF7R KGSL OOM Diagnostic 5371791f0a43`; `libvulkan_freedreno.so` ELF64 AArch64, size 15,829,000 bytes.
+- Native ELF contains all expected markers `FF7R-A650-KGSL-ALLOC`, `FF7R-A650-KGSL-PRESSURE`, `FF7R-A650-TU-ALLOC`, `TU_A650_KGSL_ALLOC_TRACE`, `mem_total_kib=`, `swap_free_kib=`, `committed_as_kib=`, `cma_free_kib=`.
+
+The V11 ZIP is an **AdrenoTools graphics driver** and must not be installed in GameNative as DXVK or FEX WCP. Keep original Mr Purple T30 and prior V9 package for rollback. Current CI checks do not replace required A650 runtime validation.
