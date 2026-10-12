@@ -71,9 +71,19 @@ def instrument_tu_device(source: str) -> str:
     if end < 0:
         raise ValueError("No next function boundary")
     body = source[start:end]
-    target = "if (result != VK_SUCCESS) {"
-    if body.count(target) != 1:
-        raise ValueError("Expected one allocation failure branch")
+    # Mesa has several `if (result != VK_SUCCESS)` blocks for imported
+    # hardware buffers. Instrument only the final failed BO allocation path,
+    # identified by its memory-report+destroy cleanup, not the AHB fallbacks.
+    branches = list(re.finditer(r"if\\s*\\(result\\s*!=\\s*VK_SUCCESS\\)\\s*\\{", body))
+    candidates = []
+    for candidate in branches:
+        nearby = body[candidate.end():candidate.end() + 650]
+        if ("tu_memory_emit_report" in nearby
+                and "vk_device_memory_destroy" in nearby
+                and "return result;" in nearby):
+            candidates.append(candidate)
+    if len(candidates) != 1:
+        raise ValueError(f"Expected one final failed BO allocation branch, got {len(candidates)}")
     add = r'''
       // Opt-in failure-only root-cause stage, no memory behavior changes.
       static std::atomic<unsigned> ff7r_tu_log_count { 0u };
@@ -92,7 +102,8 @@ def instrument_tu_device(source: str) -> str:
             flags_info ? static_cast<unsigned>(flags_info->flags) : 0u);
       }
 '''
-    body = body.replace(target, target + add)
+    anchor = candidates[0].end()
+    body = body[:anchor] + add + body[anchor:]
     return add_includes(source[:start] + body + source[end:])
 
 
