@@ -74,7 +74,7 @@ def instrument_tu_device(source: str) -> str:
     # Mesa has several `if (result != VK_SUCCESS)` blocks for imported
     # hardware buffers. Instrument only the final failed BO allocation path,
     # identified by its memory-report+destroy cleanup, not the AHB fallbacks.
-    branches = list(re.finditer(r"if\\s*\\(result\\s*!=\\s*VK_SUCCESS\\)\\s*\\{", body))
+    branches = list(re.finditer(r"if\s*\(result\s*!=\s*VK_SUCCESS\)\s*\{", body))
     candidates = []
     for candidate in branches:
         nearby = body[candidate.end():candidate.end() + 650]
