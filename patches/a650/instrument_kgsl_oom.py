@@ -82,9 +82,9 @@ def instrument_tu_device(source: str) -> str:
         # followed immediately by the Vulkan memory failure report. Merely
         # finding those names later would also match an earlier AHB block.
         if (re.match(
-                r"\\s*vk_device_memory_destroy\\s*\\(\\s*&device->vk\\s*,"
-                r"\\s*pAllocator\\s*,\\s*&mem->vk\\s*\\)\\s*;"
-                r"\\s*tu_memory_emit_report",
+                r"\s*vk_device_memory_destroy\s*\(\s*&device->vk\s*,"
+                r"\s*pAllocator\s*,\s*&mem->vk\s*\)\s*;"
+                r"\s*tu_memory_emit_report",
                 nearby)
                 and "return result;" in nearby):
             candidates.append(candidate)
