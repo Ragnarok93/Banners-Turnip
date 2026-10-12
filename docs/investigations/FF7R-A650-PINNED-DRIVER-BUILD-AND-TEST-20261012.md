@@ -33,3 +33,15 @@ These fields distinguish a native errno-generating ioctl rejection from Turnip h
 Treat `VkResult=-2` as verified but native kernel cause unknown. Do not assume it means GPU's 4-GiB virtual address cap. Instrument driver-to-GameNative-native log forwarding next. Never require ADB for this user workflow.
 
 Related repos: [DXVK memory analysis](https://github.com/Ragnarok93/dxvk-SD865/blob/feature/ff7r-sd865-architecture-20261011/docs/FF7R-SD865-DXGI-REPORTED-VRAM-VS-VULKAN-OOM-20261012.md), [GameNative settings implementation](https://github.com/Ragnarok93/GameNative/blob/research/ff7r-vram-config-20261012/docs/investigations/FF7R-SD865-VRAM-CONFIG-PROPAGATION-20261012.md), [FEX diagnosis boundaries](https://github.com/Ragnarok93/FEX/blob/research/ff7r-memory-triage-20261012/docs/investigations/FF7R-SD865-FEX2610-NONCAUSAL-TRIAGE-20261012.md).
+
+## 2026-10-12 CI verification completed
+
+Pinned A650 build succeeded in [GitHub Actions run 38190843264](https://github.com/Ragnarok93/Banners-Turnip/actions/runs/38190843264) from commit `a2e797087b3dc1c53692c786b4e0808009d393a6`. The workflow checked the exact Mesa pin and both ELF markers. Independently downloaded the Actions ZIP and verified:
+
+- Installable AdrenoTools ZIP: `mesa-turnip-main-A650-FF7R-KGSL-Diag-a2e797087b3d-V6.zip`
+- SHA-256: `087bd81ee3d696fbb114ec56d5d35950f22e8e4b2b2d4f23df967de3378b5699`
+- `meta.json` driver identity: `Banners Turnip A650 FF7R KGSL OOM Diagnostic a2e797087b3d`, reported Vulkan `1.4.363`.
+- `libvulkan_freedreno.so`: ELF 64-bit AArch64, Android 34, NDK r29, BuildID `fa2dcb88067db4ee9e98f4bf8718fecedec4fa39`.
+- Verified embedded text symbols `FF7R-A650-KGSL-ALLOC`, `FF7R-A650-TU-ALLOC`, `TU_A650_KGSL_ALLOC_TRACE`.
+
+**No runtime A650 device validation yet.** Benchmarking against Mr Purple T30, loading with PurpleVK, and verifying stderr forwarding remain open. The package is source/compile/structure validated but not a proven performance improvement or root-cause fix.
