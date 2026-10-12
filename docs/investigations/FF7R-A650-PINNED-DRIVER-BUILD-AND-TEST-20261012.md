@@ -45,3 +45,19 @@ Pinned A650 build succeeded in [GitHub Actions run 38190843264](https://github.c
 - Verified embedded text symbols `FF7R-A650-KGSL-ALLOC`, `FF7R-A650-TU-ALLOC`, `TU_A650_KGSL_ALLOC_TRACE`.
 
 **No runtime A650 device validation yet.** Benchmarking against Mr Purple T30, loading with PurpleVK, and verifying stderr forwarding remain open. The package is source/compile/structure validated but not a proven performance improvement or root-cause fix.
+
+## 2026-10-12 follow-up: KGSL ENOMEM pressure snapshot build, CI verified
+
+On-device driver tags have now confirmed `IOCTL_KGSL_GPUMEM_ALLOC_ID` itself returns **errno 12 (ENOMEM)** when FFVII Remake approaches ~4 GiB tracked GPU allocations. All logged failed native buffers had `force_32bit=0` and `replayable=0`. This is not merely a DXVK memory-budget-denial problem. See [device-native log breakdown](FF7R-A650-DEVICE-KGSL-ENOMEM-20261012.md).
+
+**Follow-up source patch:** `patches/a650/instrument_kgsl_oom.py` now emits `FF7R-A650-KGSL-PRESSURE` at the first and then every 32nd *logged KGSL errno failure*, bounded by the existing 128-event diagnostic limit and enabled only by `TU_A650_KGSL_ALLOC_TRACE=1`. It queries `/proc/meminfo: MemAvailable`, the **calling process** `/proc/self/status: VmRSS/VmSwap/VmSize`, and `RLIMIT_AS` without collecting any addresses or changing the underlying allocation. A value of `-1` is unknown/unlimited, not a negative amount of actual memory.
+
+**Verified ZIP:** [GitHub Actions run 38192733815](https://github.com/Ragnarok93/Banners-Turnip/actions/runs/38192733815), source head `f380e6cfd566d9979b914b7e81ffe708db1520f4`. Exact inner AdrenoTools ZIP `mesa-turnip-main-A650-FF7R-KGSL-Diag-f380e6cfd566-V9.zip`, **3,216,778 bytes**, **SHA256 `68b0210362e7f78451c1b5ede393c3f18239e0c2f7e8ebb0195484e807a73855`**. Downloaded successful Actions artifact and independently verified ZIP CRC, `meta.json` library name, ELF64 AArch64 machine code, and embedded binary marker strings `FF7R-A650-KGSL-ALLOC`, `FF7R-A650-TU-ALLOC`, `FF7R-A650-KGSL-PRESSURE` and `TU_A650_KGSL_ALLOC_TRACE`.
+
+**Phone-only next step:** Import the inner ZIP as an **AdrenoTools Turnip driver**, not a DXVK WCP. Keep our prior FF7R dxvk-SD865 diagnostic WCP, FEX2610 preset and other graphics settings fixed; **Graphics Max Device Memory = 0**. Use `TU_A650_KGSL_ALLOC_TRACE=1`, `DXVK_SD865_ALLOC_TRACE=1`, `DXVK_LOG_LEVEL=error`. Launch FFVII Remake, export Wine debug log via GameNative UI, and find:
+
+```text
+FF7R-A650-KGSL-PRESSURE stage=alloc_enomem mem_available_kib=... vm_rss_kib=... vm_swap_kib=... vm_size_kib=... rlimit_as_bytes=...
+```
+
+This is a **format example**, not a fabricated observed reading. There is still no actual runtime memory-pressure snapshot from this follow-up binary. Presence of these values will help distinguish Android system memory exhaustion from a narrower KGSL/GPU VA allocation issue, but cannot by itself prove a 4-GiB GPU address cap.
