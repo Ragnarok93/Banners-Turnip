@@ -98,7 +98,7 @@ def instrument_tu_device(source: str) -> str:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("mesa", type=Path)
+    p.add_argument("mesa", type=Path, nargs="?", default=Path("."))
     args = p.parse_args()
     kgsl = args.mesa / "src/freedreno/vulkan/tu_knl_kgsl.cc"
     device = args.mesa / "src/freedreno/vulkan/tu_device.cc"
