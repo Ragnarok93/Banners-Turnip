@@ -50,6 +50,20 @@ class KgslDiagnosticsTests(unittest.TestCase):
         self.assertEqual(s.count("IOCTL_KGSL_GPUMEM_ALLOC_ID"), 1)
         self.assertRaises(ValueError, tu.instrument_kgsl, s)
 
+    def test_failure_only_memory_pressure_sampling_preserves_errno(self):
+        source = tu.instrument_kgsl(KGSL)
+        self.assertIn("FF7R-A650-KGSL-PRESSURE", source)
+        self.assertIn("MemAvailable: %lld", source)
+        self.assertIn("VmRSS: %lld", source)
+        self.assertIn("VmSwap: %lld", source)
+        self.assertIn("VmSize: %lld", source)
+        self.assertIn("RLIMIT_AS", source)
+        self.assertIn("ff7r_press_seq & 31u", source)
+        self.assertIn("errno = ff7r_saved_errno", source)
+        self.assertLess(source.index("FF7R-A650-KGSL-PRESSURE"), source.index("errno = ff7r_saved_errno"))
+        self.assertIn("return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY", source)
+        self.assertEqual(source.count("FF7R-A650-KGSL-PRESSURE"), 1)
+
     def test_tu_failure_reporting_retains_result(self):
         s = tu.instrument_tu_device(DEVICE)
         self.assertIn("FF7R-A650-TU-ALLOC", s)
