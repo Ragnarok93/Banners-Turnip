@@ -26,6 +26,8 @@ tu_AllocateMemory(int arg) {
  const VkMemoryAllocateFlagsInfo *flags_info = nullptr;
  VkResult result;
  if (result != VK_SUCCESS) {
+   vk_device_memory_destroy(&device->vk, pAllocator, &mem->vk);
+   tu_memory_emit_report(device, NULL, pAllocateInfo, result);
    return result;
  }
  return VK_SUCCESS;
