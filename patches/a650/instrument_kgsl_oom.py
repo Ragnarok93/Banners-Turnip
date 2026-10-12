@@ -97,7 +97,7 @@ def instrument_kgsl(source: str) -> str:
          std::fprintf(stderr,
             "FF7R-A650-KGSL-PRESSURE stage=alloc_enomem"
             " mem_available_kib=%lld vm_rss_kib=%lld"
-            " vm_swap_kib=%lld vm_size_kib=%lld rlimit_as_bytes=%lld\\n",
+            " vm_swap_kib=%lld vm_size_kib=%lld rlimit_as_bytes=%lld\n",
             mem_available_kib, vm_rss_kib, vm_swap_kib, vm_size_kib,
             address_limit_bytes);
       }
