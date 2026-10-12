@@ -54,15 +54,17 @@ def instrument_kgsl(source: str) -> str:
             static_cast<unsigned long long>(req.flags),
             (req.flags & KGSL_MEMFLAGS_FORCE_32BIT) ? 1 : 0,
             (flags & TU_BO_ALLOC_REPLAYABLE) ? 1 : 0);
-      }
-      // A bounded native snapshot every 32 rejected ioctl requests
-      // distinguishes global memory pressure from a smaller KGSL policy/VA
-      // limit without requiring ADB, root, logcat or sensitive addresses.
+      // Sample only on the first and each 32nd recorded opt-in error:
+      // avoid /proc reads in normal gameplay and after the 128-event cap.
       static std::atomic<unsigned> ff7r_pressure_count { 0u };
       const unsigned ff7r_press_seq =
          ff7r_pressure_count.fetch_add(1u, std::memory_order_relaxed);
       if ((ff7r_press_seq & 31u) == 0u) {
          long long mem_available_kib = -1;
+         long long mem_total_kib = -1;
+         long long swap_free_kib = -1;
+         long long committed_as_kib = -1;
+         long long cma_free_kib = -1;
          long long vm_rss_kib = -1;
          long long vm_swap_kib = -1;
          long long vm_size_kib = -1;
@@ -73,7 +75,19 @@ def instrument_kgsl(source: str) -> str:
             while (std::fgets(ff7r_line, sizeof(ff7r_line), info)) {
                if (std::sscanf(ff7r_line, "MemAvailable: %lld",
                                &mem_available_kib) == 1)
-                  break;
+                  continue;
+               if (std::sscanf(ff7r_line, "MemTotal: %lld",
+                               &mem_total_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "SwapFree: %lld",
+                               &swap_free_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "Committed_AS: %lld",
+                               &committed_as_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "CmaFree: %lld",
+                               &cma_free_kib) == 1)
+                  continue;
             }
             std::fclose(info);
          }
@@ -96,10 +110,14 @@ def instrument_kgsl(source: str) -> str:
 
          std::fprintf(stderr,
             "FF7R-A650-KGSL-PRESSURE stage=alloc_enomem"
-            " mem_available_kib=%lld vm_rss_kib=%lld"
+            " mem_available_kib=%lld mem_total_kib=%lld"
+            " swap_free_kib=%lld committed_as_kib=%lld cma_free_kib=%lld"
+            " vm_rss_kib=%lld"
             " vm_swap_kib=%lld vm_size_kib=%lld rlimit_as_bytes=%lld\n",
-            mem_available_kib, vm_rss_kib, vm_swap_kib, vm_size_kib,
-            address_limit_bytes);
+            mem_available_kib, mem_total_kib, swap_free_kib,
+            committed_as_kib, cma_free_kib, vm_rss_kib, vm_swap_kib,
+            vm_size_kib, address_limit_bytes);
+      }
       }
       errno = ff7r_saved_errno;
 '''
