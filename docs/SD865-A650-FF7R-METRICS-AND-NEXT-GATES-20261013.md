@@ -18,10 +18,11 @@ Source Mesa SHA: `76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2`. Do not substitute a
 
 ## Companion DXVK instrumentation
 
-DXVK-SD865 branch `feature/ff7r-sd865-architecture-20261011`, checkpoint `a184c65ee0be42c6d9a078aae4152d013f8edc97` implements:
+DXVK-SD865 branch `feature/ff7r-sd865-architecture-20261011`, checkpoint `1a8d9a68ec8ca27a54c486564208ad4a49217012` implements:
 
 - `DXVK_FF7R_METRICS=1` opt-in D3D11 DXGI Present completion-interval windows (256 intervals; mean, p50/p95/p99/max). **CPU-side Present cadence is not GPU execution / scanout frame time.**
 - Background shader-library / optimized-pipeline worker CPU compilation timings and 10/33ms counts.
+- Render-thread pipeline cache-miss / pipeline mutex waiting measured separately as `DXVK-FF7R-ONDEMAND`, to identify synchronous stalls missed by background worker counters.
 - ZIP analyzer `python3 tools/ff7r_perf_compare.py baseline.zip candidate.zip` in DXVK repo. At least three windows per trial, then at least three independent matched trials per driver. Script reports medians of per-window percentile summaries, not globally pooled percentiles.
 - Vulkan requirements/features, shader compiler, GMEM/tiler routing, clocks and Turnip worker source paths are unaffected by this instrumentation.
 
@@ -38,7 +39,7 @@ Enable `DXVK_LOG_LEVEL=info` and `DXVK_FF7R_METRICS=1` in GameNative, retain all
 
 - [x] Turnip prior fork surveys, profile implementations, allocation unit tests and three matched NDK/API29 build profiles (see earlier validation documents).
 - [x] Companion DXVK instrumentation and portable host percentile/parser tests checkpointed.
-- [ ] Companion DXVK PE cross-build / WCP workflow success for exact `a184c65` source revision.
+- [ ] Companion DXVK PE cross-build / WCP workflow success for exact `1a8d9a6` source revision.
 - [ ] S20+ three-trial matched scene frame pacing, image correctness, temperature and RAM/OOM validation.
 - [ ] Any additional shader/barrier/GMEM/clock change: deferred until above data justifies its risk.
 
