@@ -87,7 +87,7 @@ Tips: `TU_DEBUG=sysmem` if an A830 looks glitchy; `TU_DEBUG=deck_emu` if a game 
 | :--- | :--- | :--- |
 | **Build Turnip (Combined)** | Auto (mesa-watcher) or manual | Standard + A8xx + A710/A720/A722, Android, Wayland and Linux builds in parallel from one Mesa commit; each ZIP is checked in CI, then published as a single tagged release with notes written from what built (manual runs can set `dry_run` to build and verify without publishing) |
 | **Build Turnip A8xx (Experimental)** | Manual | Standalone A8xx test build — faster iteration outside the release cycle |
-| **Build Turnip (Perf 6xx/7xx)** | Manual | A6xx/A7xx only, compiled with `-O3` + ThinLTO for performance testing |
+| **Build Turnip (Perf 6xx/7xx)** | Manual | Generic A6xx/A7xx O3 + ThinLTO build, or an opt-in SD865/A650 profile adding `-mtune=cortex-a77`; the latter keeps the generic AArch64 ISA and is an A/B test candidate, not a measured performance claim |
 
 ---
 

@@ -10,9 +10,24 @@ ndk="$workdir/$ndkver/toolchains/llvm/prebuilt/linux-x86_64/bin"
 sdkver="34"
 mesasrc="https://gitlab.freedesktop.org/mesa/mesa"
 srcfolder="mesa"
+perf_profile="${PERF_PROFILE:-generic}"
+case "$perf_profile" in
+	generic)
+		cpu_tune_flags=""
+		perf_description="A6xx/A7xx generic AArch64 performance build"
+		;;
+	sd865-cortex-a77)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="Snapdragon 865 / Adreno 650 Cortex-A77-tuned performance build"
+		;;
+	*)
+		echo "Unsupported PERF_PROFILE: $perf_profile" >&2
+		exit 2
+		;;
+esac
 
 run_all(){
-	echo -e "${green}====== Begin building TU Perf V${BUILD_VERSION}! ======${nocolor}"
+	echo -e "${green}====== Begin building TU Perf ${perf_profile} V${BUILD_VERSION}! ======${nocolor}"
 	check_deps
 	prepare_workdir
 	build_lib_for_android main
@@ -62,7 +77,7 @@ prepare_workdir(){
 
 build_lib_for_android(){
 	cd "$workdir/$srcfolder"
-	echo "==== Building Mesa on $1 branch (performance build — A6xx/A7xx) ===="
+	echo "==== Building Mesa on $1 branch ($perf_description) ===="
 
 	# KGSL fixes every leg ships (patches/common/SOURCE); fails the build if one does not land.
 	bash ../../patches/common/apply_common.sh . || { echo -e "${red}patches/common did not apply, aborting!${nocolor}"; exit 1; }
@@ -84,8 +99,8 @@ build_lib_for_android(){
 	export OBJDUMP=llvm-objdump
 	export OBJCOPY=llvm-objcopy
 	export LDFLAGS="-fuse-ld=lld -flto=thin"
-	export CFLAGS="-D__ANDROID__ -O3 -fno-plt -flto=thin -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
-	export CXXFLAGS="-D__ANDROID__ -O3 -fno-plt -flto=thin -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
+	export CFLAGS="-D__ANDROID__ -O3 -fno-plt $cpu_tune_flags -flto=thin -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
+	export CXXFLAGS="-D__ANDROID__ -O3 -fno-plt $cpu_tune_flags -flto=thin -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
 
 	GITHASH=$(git rev-parse --short HEAD)
 
@@ -151,13 +166,13 @@ EOF
 	echo "Making the archive..."
 	cd /tmp/turnip-$1/lib
 
-	_zip_name="mesa-turnip-perf-$1.zip"
+	_zip_name="mesa-turnip-perf-${perf_profile}-$1.zip"
 
 	cat <<EOF >"meta.json"
 {
   "schemaVersion": 1,
-  "name": "Banners Turnip Perf ${GITHASH}",
-  "description": "A6xx/A7xx performance build — Mesa main (git ${GITHASH}). O3 + ThinLTO. KGSL.",
+  "name": "Banners Turnip Perf ${perf_profile} ${GITHASH}",
+  "description": "${perf_description} — Mesa main (git ${GITHASH}). O3 + ThinLTO; ${cpu_tune_flags:-generic ISA tuning}. KGSL.",
   "author": "The412Banner",
   "packageVersion": "1",
   "vendor": "Mesa",
