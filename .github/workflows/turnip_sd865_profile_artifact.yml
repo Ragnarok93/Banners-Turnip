@@ -10,6 +10,7 @@ on:
       - 'patches/common/**'
       - 'patches/sd865/**'
       - '.github/scripts/verify_driver_zip.py'
+      - '.github/scripts/test_sd865_suballoc.py'
   workflow_dispatch:
 
 permissions:
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [sd865-cortex-a77, sd865-program-reference]
+        profile: [sd865-cortex-a77, sd865-program-reference, sd865-pipeline-512k]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +43,15 @@ jobs:
           chmod +x build_turnip_perf.sh
           ./build_turnip_perf.sh
 
+      - name: Verify actual Mesa suballocator and A650 gating
+        env:
+          PERF_PROFILE: ${{ matrix.profile }}
+        run: |
+          expected_kib=128
+          if [ "$PERF_PROFILE" = "sd865-pipeline-512k" ]; then expected_kib=512; fi
+          python3 .github/scripts/test_sd865_suballoc.py \
+            --mesa turnip_workdir/mesa --expected-pipeline-kib "$expected_kib"
+
       - name: Verify driver and matched-build provenance
         env:
           PERF_PROFILE: ${{ matrix.profile }}
@@ -56,7 +66,12 @@ jobs:
               driver = archive.read('libvulkan_freedreno.so')
           assert manifest['mesaCommit'] == os.environ['MESA_COMMIT']
           assert manifest['profile'] == os.environ['PERF_PROFILE']
-          assert manifest['programReference'] == int(os.environ['PERF_PROFILE'] == 'sd865-program-reference')
+          assert manifest['programReference'] == int(os.environ['PERF_PROFILE'] != 'sd865-cortex-a77')
+          pipeline_candidate = os.environ['PERF_PROFILE'] == 'sd865-pipeline-512k'
+          assert manifest['pipelineSuballocPatchApplied'] == int(pipeline_candidate)
+          assert manifest['pipelineSuballocA650KiB'] == (512 if pipeline_candidate else 128)
+          pipeline_patch = pathlib.Path('patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch').read_bytes()
+          assert manifest['pipelineSuballocPatchSha256'] == hashlib.sha256(pipeline_patch).hexdigest()
           assert manifest['cpuTune'] == '-mtune=cortex-a77'
           assert manifest['androidApi'] == manifest['platformSdk'] == meta['minApi'] == 29
           assert meta['driverVersion'] == 'Vulkan 1.3.0'

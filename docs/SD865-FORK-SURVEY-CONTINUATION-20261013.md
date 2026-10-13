@@ -55,7 +55,14 @@ remain pending. This is distinct from DXVK's prior 64MiB memory chunk experiment
 
 - [x] Recover previous source/build/device checkpoints.
 - [x] Refresh fork survey before changing code.
-- [ ] Wait for DXVK PE/WCP validation, then implement Turnip candidate.
-- [ ] Apply patch without fuzz and execute suballocator regression.
+- [x] DXVK 50 tests and MSVC x86/x64 builds pass; dedicated WCP build still running.
+- [x] Patch applies without fuzz; actual allocator/GPU-ID tests pass, including A650 chip-ID fallback and non-A650 gates.
 - [ ] Compile matched control/candidate driver ZIPs and validate ABI/provenance.
 - [ ] S20+ FF7R median/p95/p99 and memory-pressure acceptance.
+
+
+Native test result: control 8 BO calls -> candidate 2 on 64 x 16KiB; total bytes
+1MiB in both arms. Placement, content, oversize allocations, failed allocation/map
+and teardown pass. Baseline fails the candidate capacity assertion; patched code
+passes. New source is a two-line change, gated to GPU ID650. Compile/device gates
+remain separate. Firmware/device GPU timing is unavailable in this environment.

@@ -40,3 +40,24 @@ Keep LSFG and vkBasalt enabled in-container and LSFG FG disabled in-game;
 keep textures Low, warm caches equally, and record real-frame p95/p99 plus
 rendering/stability results in three matched trials. This candidate remains
 experimental until those device gates pass.
+
+## Isolated A650 pipeline backing candidate
+
+`sd865-pipeline-512k` uses exactly `sd865-program-reference` plus a change to
+A650's pipeline_suballoc default backing size, from 128 to 512 KiB. Other GPUs
+and KGSL profiling buffers remain at 128 KiB. Both explicit GPU ID and chip-ID
+fallback are tested. Patch attribution is in `patches/sd865/SOURCE`.
+
+A native fake-BO test executes the actual pinned Mesa allocator: a 64 x 16 KiB
+pipeline burst requires 8 backing BO allocations with the control and 2 with
+the candidate (both allocate exactly 1 MiB). Alignment, non-overlapping content,
+oversize allocations, map/BO failures and teardown are checked. This is host
+allocation evidence only; kernel latency and FF7R frametimes remain unmeasured.
+Larger backing BOs can retain up to 384 KiB extra tail in each current/cached BO.
+
+Compare program-reference versus pipeline-512k with the same DXVK build;
+compare A77 versus program-reference separately. The workflow compiles all
+three from Mesa 76b9372, with identical NDK/API29/compiler settings and ABI
+checks. Manifests additionally identify the A650 allocation size, whether
+its patch was applied, and its patch hash. No new environment variables are
+required. Leave LSFG/vkBasalt and all game settings fixed.

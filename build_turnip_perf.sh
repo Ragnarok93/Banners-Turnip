@@ -13,6 +13,8 @@ srcfolder="mesa"
 mesa_commit="${MESA_COMMIT:-}"
 perf_profile="${PERF_PROFILE:-generic}"
 program_reference=0
+pipeline_512k=0
+pipeline_a650_kib=128
 platform_sdk="36"
 min_api="28"
 metadata_vulkan="1.4.335"
@@ -33,6 +35,17 @@ case "$perf_profile" in
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="SD865 A650 candidate: A77 tuning with borrowed graphics program state"
 		program_reference=1
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-pipeline-512k)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 candidate: program references and 512 KiB pipeline backing BOs"
+		program_reference=1
+		pipeline_512k=1
+		pipeline_a650_kib=512
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
@@ -112,6 +125,11 @@ build_lib_for_android(){
 		# No fuzzy application or silently missing optimization in a named candidate.
 		git apply --check ../../patches/sd865/0001-tu-reference-bound-program-state.patch
 		git apply ../../patches/sd865/0001-tu-reference-bound-program-state.patch
+	fi
+
+	if [ "$pipeline_512k" = "1" ]; then
+		git apply --check ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
+		git apply ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
 	fi
 
 	# NDK r29 compatibility fixes
@@ -217,11 +235,15 @@ EOF
 	MESA_SOURCE_SHA=$(git -C "$workdir/$srcfolder" rev-parse HEAD)
 	DRIVER_SHA=$(sha256sum libvulkan_freedreno.so | cut -d ' ' -f 1)
 	PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0001-tu-reference-bound-program-state.patch" | cut -d ' ' -f 1)
+	PIPELINE_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" | cut -d ' ' -f 1)
 	cat <<EOF >"build-manifest.json"
 {
   "mesaCommit": "${MESA_SOURCE_SHA}",
   "profile": "${perf_profile}",
   "programReference": ${program_reference},
+  "pipelineSuballocA650KiB": ${pipeline_a650_kib},
+  "pipelineSuballocPatchApplied": ${pipeline_512k},
+  "pipelineSuballocPatchSha256": "${PIPELINE_PATCH_SHA}",
   "programReferencePatchSha256": "${PATCH_SHA}",
   "driverSha256": "${DRIVER_SHA}",
   "androidApi": ${sdkver},

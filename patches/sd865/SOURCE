@@ -22,3 +22,18 @@ The 10KB copy figure and PS2 CPU measurements are the origin author's
 observations, not measured FF7R gains. Compile, package and S20+ acceptance
 are separate gates. Pipeline lifetime must obey Vulkan's existing recording
 and submission rules, as for every other borrowed pipeline/shader pointer.
+
+0002-tu-a650-pipeline-suballoc-512k.patch
+
+Derived from Ghael-V/Turnip-Lemon-Ade commit
+83323558631a484e2356d9488c6e4c05bd23076c (2026).
+URL: https://github.com/Ghael-V/Turnip-Lemon-Ade/commit/83323558631a484e2356d9488c6e4c05bd23076c
+License: Mesa MIT; existing source notices retained.
+
+Adaptation: change only pipeline_suballoc, and only for fd_dev_gpu_id == 650.
+Keep KGSL profiling backing size at 128 KiB. Apply only in the opt-in
+sd865-pipeline-512k profile, on top of program-reference. No register allocation,
+NIR pass, render mode, synchronization, clock or capability changes.
+The fake-backend test runs the actual pinned Mesa allocator and GPU-ID helper;
+it proves fewer backing allocations on a fixed synthetic burst, not FF7R FPS.
+Generated-by: LLM
