@@ -1,0 +1,44 @@
+name: Build SD865 Turnip profile artifact
+
+on:
+  push:
+    branches:
+      - feature/sd865-a650-perf-20261012
+    paths:
+      - '.github/workflows/turnip_sd865_profile_artifact.yml'
+      - 'build_turnip_perf.sh'
+      - 'patches/common/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch
+          pip3 install --break-system-packages meson mako
+
+      - name: Build Snapdragon 865 profile
+        env:
+          PERF_PROFILE: sd865-cortex-a77
+          BUILD_VERSION: ${{ github.run_number }}
+        run: |
+          chmod +x build_turnip_perf.sh
+          ./build_turnip_perf.sh
+
+      - name: Upload Turnip driver ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: turnip-sd865-cortex-a77-${{ github.run_number }}
+          path: turnip_workdir/mesa-turnip-perf-sd865-cortex-a77-main.zip
+          if-no-files-found: error
+          compression-level: 0
