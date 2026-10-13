@@ -57,7 +57,7 @@ remain pending. This is distinct from DXVK's prior 64MiB memory chunk experiment
 - [x] Refresh fork survey before changing code.
 - [x] DXVK 50 tests and MSVC x86/x64 builds pass; dedicated WCP build still running.
 - [x] Patch applies without fuzz; actual allocator/GPU-ID tests pass, including A650 chip-ID fallback and non-A650 gates.
-- [ ] Compile matched control/candidate driver ZIPs and validate ABI/provenance.
+- [x] All three matched driver profiles compiled; allocator, Android ABI and manifest/provenance checks pass (run38354147934).
 - [ ] S20+ FF7R median/p95/p99 and memory-pressure acceptance.
 
 
