@@ -3,7 +3,7 @@
 green='\033[0;32m'
 red='\033[0;31m'
 nocolor='\033[0m'
-deps="git meson ninja patchelf unzip curl pip flex bison zip glslang glslangValidator"
+deps="git meson ninja patchelf unzip curl pip flex bison zip glslangValidator ccache"
 workdir="$(pwd)/turnip_workdir"
 ndkver="android-ndk-r29"
 ndk="$workdir/$ndkver/toolchains/llvm/prebuilt/linux-x86_64/bin"

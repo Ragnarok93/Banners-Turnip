@@ -9,6 +9,7 @@ on:
       - 'build_turnip_perf.sh'
       - 'patches/common/**'
       - 'patches/sd865/**'
+      - '.github/scripts/verify_driver_zip.py'
   workflow_dispatch:
 
 permissions:
@@ -41,6 +42,37 @@ jobs:
           chmod +x build_turnip_perf.sh
           ./build_turnip_perf.sh
 
+      - name: Verify driver and matched-build provenance
+        env:
+          PERF_PROFILE: ${{ matrix.profile }}
+          MESA_COMMIT: 76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, zipfile
+          stem = pathlib.Path('turnip_workdir') / f"mesa-turnip-perf-{os.environ['PERF_PROFILE']}-main"
+          manifest = json.loads(stem.with_suffix('.manifest.json').read_text())
+          with zipfile.ZipFile(stem.with_suffix('.zip')) as archive:
+              meta = json.loads(archive.read('meta.json'))
+              driver = archive.read('libvulkan_freedreno.so')
+          assert manifest['mesaCommit'] == os.environ['MESA_COMMIT']
+          assert manifest['profile'] == os.environ['PERF_PROFILE']
+          assert manifest['programReference'] == int(os.environ['PERF_PROFILE'] == 'sd865-program-reference')
+          assert manifest['cpuTune'] == '-mtune=cortex-a77'
+          assert manifest['androidApi'] == manifest['platformSdk'] == meta['minApi'] == 29
+          assert meta['driverVersion'] == 'Vulkan 1.3.0'
+          assert manifest['driverSha256'] == hashlib.sha256(driver).hexdigest()
+          patch = pathlib.Path('patches/sd865/0001-tu-reference-bound-program-state.patch').read_bytes()
+          assert manifest['programReferencePatchSha256'] == hashlib.sha256(patch).hexdigest()
+          pathlib.Path('/tmp/sd865-driver-name.txt').write_text(meta['name'])
+          PY
+          python3 .github/scripts/verify_driver_zip.py \
+            --kind android --variant "$PERF_PROFILE" \
+            --zip "turnip_workdir/mesa-turnip-perf-$PERF_PROFILE-main.zip" \
+            --expect-name "$(cat /tmp/sd865-driver-name.txt)" \
+            --expect-package-version 1 \
+            --report "turnip_workdir/mesa-turnip-perf-$PERF_PROFILE-main.verify.json" \
+            --readelf turnip_workdir/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+
       - name: Upload Turnip driver ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -48,5 +80,6 @@ jobs:
           path: |
             turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.zip
             turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.manifest.json
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.verify.json
           if-no-files-found: error
           compression-level: 0
