@@ -10,7 +10,12 @@ ndk="$workdir/$ndkver/toolchains/llvm/prebuilt/linux-x86_64/bin"
 sdkver="34"
 mesasrc="https://gitlab.freedesktop.org/mesa/mesa"
 srcfolder="mesa"
+mesa_commit="${MESA_COMMIT:-}"
 perf_profile="${PERF_PROFILE:-generic}"
+program_reference=0
+platform_sdk="36"
+min_api="28"
+metadata_vulkan="1.4.335"
 case "$perf_profile" in
 	generic)
 		cpu_tune_flags=""
@@ -19,17 +24,39 @@ case "$perf_profile" in
 	sd865-cortex-a77)
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="Snapdragon 865 / Adreno 650 Cortex-A77-tuned performance build"
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-program-reference)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 candidate: A77 tuning with borrowed graphics program state"
+		program_reference=1
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
 		;;
 	*)
 		echo "Unsupported PERF_PROFILE: $perf_profile" >&2
 		exit 2
 		;;
 esac
+if [ -n "$mesa_commit" ] && ! [[ "$mesa_commit" =~ ^[0-9a-f]{40}$ ]]; then
+	echo "MESA_COMMIT must be a full lowercase commit SHA" >&2
+	exit 2
+fi
 
 run_all(){
 	echo -e "${green}====== Begin building TU Perf ${perf_profile} V${BUILD_VERSION}! ======${nocolor}"
 	check_deps
 	prepare_workdir
+	if [ -n "$mesa_commit" ]; then
+		git -C "$workdir/$srcfolder" fetch --depth=1 origin "$mesa_commit"
+		git -C "$workdir/$srcfolder" checkout --detach "$mesa_commit"
+		test "$(git -C "$workdir/$srcfolder" rev-parse HEAD)" = "$mesa_commit"
+	fi
 	build_lib_for_android main
 }
 
@@ -81,6 +108,11 @@ build_lib_for_android(){
 
 	# KGSL fixes every leg ships (patches/common/SOURCE); fails the build if one does not land.
 	bash ../../patches/common/apply_common.sh . || { echo -e "${red}patches/common did not apply, aborting!${nocolor}"; exit 1; }
+	if [ "$program_reference" = "1" ]; then
+		# No fuzzy application or silently missing optimization in a named candidate.
+		git apply --check ../../patches/sd865/0001-tu-reference-bound-program-state.patch
+		git apply ../../patches/sd865/0001-tu-reference-bound-program-state.patch
+	fi
 
 	# NDK r29 compatibility fixes
 	sed -i 's/typedef const native_handle_t\* buffer_handle_t;/typedef void\* buffer_handle_t;/g' include/android_stub/cutils/native_handle.h || true
@@ -145,14 +177,14 @@ EOF
 		-Dstrip=true \
 		-Dplatforms=android \
 		-Dvideo-codecs= \
-		-Dplatform-sdk-version="$sdkver" \
+		-Dplatform-sdk-version="$platform_sdk" \
 		-Dandroid-stub=true \
+		-Dandroid-strict=false \
 		-Dgallium-drivers= \
 		-Dvulkan-drivers=freedreno \
 		-Dvulkan-beta=true \
 		-Dfreedreno-kmds=kgsl \
 		-Degl=disabled \
-		-Dplatform-sdk-version=36 \
 		-Dandroid-libbacktrace=disabled \
 		--reconfigure
 
@@ -176,11 +208,29 @@ EOF
   "author": "The412Banner",
   "packageVersion": "1",
   "vendor": "Mesa",
-  "driverVersion": "Vulkan 1.4.335",
-  "minApi": 28,
+  "driverVersion": "Vulkan ${metadata_vulkan}",
+  "minApi": ${min_api},
   "libraryName": "libvulkan_freedreno.so"
 }
 EOF
+	# Keep sufficient provenance to reproduce and compare the exact pair.
+	MESA_SOURCE_SHA=$(git -C "$workdir/$srcfolder" rev-parse HEAD)
+	DRIVER_SHA=$(sha256sum libvulkan_freedreno.so | cut -d ' ' -f 1)
+	PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0001-tu-reference-bound-program-state.patch" | cut -d ' ' -f 1)
+	cat <<EOF >"build-manifest.json"
+{
+  "mesaCommit": "${MESA_SOURCE_SHA}",
+  "profile": "${perf_profile}",
+  "programReference": ${program_reference},
+  "programReferencePatchSha256": "${PATCH_SHA}",
+  "driverSha256": "${DRIVER_SHA}",
+  "androidApi": ${sdkver},
+  "platformSdk": ${platform_sdk},
+  "cpuTune": "${cpu_tune_flags}",
+  "ndk": "${ndkver}"
+}
+EOF
+	cp build-manifest.json "$workdir/${_zip_name%.zip}.manifest.json"
 	zip -q "/tmp/${_zip_name}" libvulkan_freedreno.so meta.json
 	cd - > /dev/null
 

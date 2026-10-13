@@ -8,6 +8,7 @@ on:
       - '.github/workflows/turnip_sd865_profile_artifact.yml'
       - 'build_turnip_perf.sh'
       - 'patches/common/**'
+      - 'patches/sd865/**'
   workflow_dispatch:
 
 permissions:
@@ -17,6 +18,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [sd865-cortex-a77, sd865-program-reference]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,12 +29,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
           pip3 install --break-system-packages meson mako
 
       - name: Build Snapdragon 865 profile
         env:
-          PERF_PROFILE: sd865-cortex-a77
+          PERF_PROFILE: ${{ matrix.profile }}
+          MESA_COMMIT: 76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2
           BUILD_VERSION: ${{ github.run_number }}
         run: |
           chmod +x build_turnip_perf.sh
@@ -38,7 +44,9 @@ jobs:
       - name: Upload Turnip driver ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-sd865-cortex-a77-${{ github.run_number }}
-          path: turnip_workdir/mesa-turnip-perf-sd865-cortex-a77-main.zip
+          name: turnip-${{ matrix.profile }}-${{ github.run_number }}
+          path: |
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.zip
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.manifest.json
           if-no-files-found: error
           compression-level: 0

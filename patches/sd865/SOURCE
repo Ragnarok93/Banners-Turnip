@@ -1,0 +1,24 @@
+0001-tu-reference-bound-program-state.patch
+
+Origin: bmdhacks/armsx2-turnip
+Commit: c7b815e711a4ef3b5b93981cfefcc7ba1faeea8c
+Author: Brian Degenhardt, 2026-09-23
+URL: https://github.com/bmdhacks/armsx2-turnip/commit/c7b815e711a4ef3b5b93981cfefcc7ba1faeea8c
+License: Mesa MIT (source files retain their existing copyright notices).
+
+Rebased onto upstream Mesa 76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2.
+Only the host program-state reference change is imported. No ARMSX2
+feedback-loop coherency relaxation, barriers, shader capabilities, GPU
+identity or clock constraints are imported. All current consumers were
+updated; unbound command buffers use static zero state as before.
+
+Only PERF_PROFILE=sd865-program-reference applies the patch. Both SD865
+profiles use Android API 29, android-strict=false and identical O3/A77/ThinLTO
+flags. android-strict=false permits exposing implemented Vulkan features
+beyond Android's API-level whitelist; it does not implement or force-enable
+unsupported GPU features. The A650 Vulkan feature gates remain upstream's.
+
+The 10KB copy figure and PS2 CPU measurements are the origin author's
+observations, not measured FF7R gains. Compile, package and S20+ acceptance
+are separate gates. Pipeline lifetime must obey Vulkan's existing recording
+and submission rules, as for every other borrowed pipeline/shader pointer.
