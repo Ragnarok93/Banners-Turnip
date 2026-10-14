@@ -15,6 +15,8 @@ perf_profile="${PERF_PROFILE:-generic}"
 program_reference=0
 pipeline_512k=0
 pipeline_a650_kib=128
+sysmem_screen=0
+render_mode_a650="auto"
 platform_sdk="36"
 min_api="28"
 metadata_vulkan="1.4.335"
@@ -40,12 +42,17 @@ case "$perf_profile" in
 		min_api="$sdkver"
 		metadata_vulkan="1.3.0"
 		;;
-	sd865-pipeline-512k)
+	sd865-pipeline-512k|sd865-sysmem-screen)
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="SD865 A650 candidate: program references and 512 KiB pipeline backing BOs"
 		program_reference=1
 		pipeline_512k=1
 		pipeline_a650_kib=512
+		if [ "$perf_profile" = "sd865-sysmem-screen" ]; then
+			sysmem_screen=1
+			render_mode_a650="sysmem"
+			perf_description="Experimental SD865 A650 forced SYSMEM: existing program references and 512 KiB pipeline BOs"
+		fi
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
@@ -130,6 +137,11 @@ build_lib_for_android(){
 	if [ "$pipeline_512k" = "1" ]; then
 		git apply --check ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
 		git apply ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
+	fi
+
+	if [ "$sysmem_screen" = "1" ]; then
+		git apply --check ../../patches/sd865/0003-tu-a650-sysmem-screen.patch
+		git apply ../../patches/sd865/0003-tu-a650-sysmem-screen.patch
 	fi
 
 	# NDK r29 compatibility fixes
@@ -236,10 +248,16 @@ EOF
 	DRIVER_SHA=$(sha256sum libvulkan_freedreno.so | cut -d ' ' -f 1)
 	PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0001-tu-reference-bound-program-state.patch" | cut -d ' ' -f 1)
 	PIPELINE_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" | cut -d ' ' -f 1)
+	RENDER_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0003-tu-a650-sysmem-screen.patch" | cut -d ' ' -f 1)
+	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
 	cat <<EOF >"build-manifest.json"
 {
   "mesaCommit": "${MESA_SOURCE_SHA}",
   "profile": "${perf_profile}",
+  "builderCommit": "${BUILDER_SHA}",
+  "renderModeA650": "${render_mode_a650}",
+  "renderModePatchApplied": ${sysmem_screen},
+  "renderModePatchSha256": "${RENDER_PATCH_SHA}",
   "programReference": ${program_reference},
   "pipelineSuballocA650KiB": ${pipeline_a650_kib},
   "pipelineSuballocPatchApplied": ${pipeline_512k},

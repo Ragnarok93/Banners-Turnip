@@ -37,3 +37,15 @@ NIR pass, render mode, synchronization, clock or capability changes.
 The fake-backend test runs the actual pinned Mesa allocator and GPU-ID helper;
 it proves fewer backing allocations on a fixed synthetic burst, not FF7R FPS.
 Generated-by: LLM
+
+0003-tu-a650-sysmem-screen.patch
+
+Idea reference: StevenMXZ/Adreno-Tools-Drivers A6xx/A7xx commit
+ a6aa12c71bb49789d0a53c6d96ccfdd3d34659a5,
+ patches/force_sysmem_no_autotuner.patch (unconditional use_sysmem_rendering return).
+Adaptation written here against Mesa76b9372: A650-only fd_dev_gpu_id predicate,
+visible trace reason, opt-in sd865-sysmem-screen build; other GPUs unchanged.
+No StevenMXZ driver binaries are downloaded or installed. Existing Mesa MIT
+source notices retained. No barrier/wait removal, unsupported features or clock
+changes. Preserves program-reference and pipeline512k. This is a render-path
+screening hypothesis, NOT a verified performance optimization.

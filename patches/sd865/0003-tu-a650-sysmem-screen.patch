@@ -1,0 +1,29 @@
+diff --git a/src/freedreno/vulkan/tu_cmd_buffer.cc b/src/freedreno/vulkan/tu_cmd_buffer.cc
+--- a/src/freedreno/vulkan/tu_cmd_buffer.cc
++++ b/src/freedreno/vulkan/tu_cmd_buffer.cc
+@@ -1411,6 +1411,13 @@
+    return vsc->binning_possible && vsc->binning_useful;
+ }
+ 
++/* Opt-in SD865 screening build: preserve other GPUs and all synchronization. */
++static bool
++tu_sd865_sysmem_screen(uint32_t gpu_id)
++{
++   return gpu_id == 650;
++}
++
+ static bool
+ use_sysmem_rendering(struct tu_cmd_buffer *cmd,
+                      tu_autotune::rp_ctx_t *rp_ctx,
+@@ -1418,6 +1425,11 @@
+ {
+    if (TU_DEBUG(SYSMEM)) {
+       cmd->state.rp.force_render_mode_reason = "TU_DEBUG(SYSMEM)";
++      return true;
++   }
++
++   if (tu_sd865_sysmem_screen(fd_dev_gpu_id(&cmd->device->physical_device->dev_id))) {
++      cmd->state.rp.force_render_mode_reason = "SD865 experimental forced SYSMEM";
+       return true;
+    }
+ 

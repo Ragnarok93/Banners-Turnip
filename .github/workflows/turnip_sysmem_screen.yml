@@ -1,0 +1,110 @@
+name: Build SD865 SYSMEM screening artifact
+
+on:
+  push:
+    branches:
+      - codex/ff7r-a650-sysmem
+    paths:
+      - '.github/workflows/turnip_sysmem_screen.yml'
+      - '.github/scripts/test_sd865_render_mode.py'
+      - 'build_turnip_perf.sh'
+      - 'patches/common/**'
+      - 'patches/sd865/**'
+      - '.github/scripts/verify_driver_zip.py'
+      - '.github/scripts/test_sd865_suballoc.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [sd865-sysmem-screen]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          pip3 install --break-system-packages meson mako
+
+      - name: Build Snapdragon 865 profile
+        env:
+          PERF_PROFILE: ${{ matrix.profile }}
+          MESA_COMMIT: 76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2
+          BUILD_VERSION: ${{ github.run_number }}
+        run: |
+          chmod +x build_turnip_perf.sh
+          ./build_turnip_perf.sh
+
+      - name: Verify actual Mesa suballocator and A650 gating
+        env:
+          PERF_PROFILE: ${{ matrix.profile }}
+        run: |
+          expected_kib=128
+          if [ "$PERF_PROFILE" = "sd865-sysmem-screen" ]; then expected_kib=512; fi
+          python3 .github/scripts/test_sd865_suballoc.py \
+            --mesa turnip_workdir/mesa --expected-pipeline-kib "$expected_kib"
+
+      - name: Verify A650-only rendering predicate
+        run: python3 .github/scripts/test_sd865_render_mode.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_cmd_buffer.cc
+
+      - name: Verify driver and matched-build provenance
+        env:
+          PERF_PROFILE: ${{ matrix.profile }}
+          MESA_COMMIT: 76b9372c4e5d186f57d22d3a4f95dd1c5e04ece2
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, zipfile
+          stem = pathlib.Path('turnip_workdir') / f"mesa-turnip-perf-{os.environ['PERF_PROFILE']}-main"
+          manifest = json.loads(stem.with_suffix('.manifest.json').read_text())
+          with zipfile.ZipFile(stem.with_suffix('.zip')) as archive:
+              meta = json.loads(archive.read('meta.json'))
+              driver = archive.read('libvulkan_freedreno.so')
+          assert manifest['mesaCommit'] == os.environ['MESA_COMMIT']
+          assert manifest['profile'] == os.environ['PERF_PROFILE']
+          assert manifest['programReference'] == int(os.environ['PERF_PROFILE'] != 'sd865-cortex-a77')
+          pipeline_candidate = os.environ['PERF_PROFILE'] == 'sd865-sysmem-screen'
+          assert manifest['renderModeA650'] == 'sysmem'
+          assert manifest['renderModePatchApplied'] == 1
+          render_patch = pathlib.Path('patches/sd865/0003-tu-a650-sysmem-screen.patch').read_bytes()
+          assert manifest['renderModePatchSha256'] == hashlib.sha256(render_patch).hexdigest()
+          assert manifest['builderCommit'] == os.environ['GITHUB_SHA']
+          assert manifest['pipelineSuballocPatchApplied'] == int(pipeline_candidate)
+          assert manifest['pipelineSuballocA650KiB'] == (512 if pipeline_candidate else 128)
+          pipeline_patch = pathlib.Path('patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch').read_bytes()
+          assert manifest['pipelineSuballocPatchSha256'] == hashlib.sha256(pipeline_patch).hexdigest()
+          assert manifest['cpuTune'] == '-mtune=cortex-a77'
+          assert manifest['androidApi'] == manifest['platformSdk'] == meta['minApi'] == 29
+          assert meta['driverVersion'] == 'Vulkan 1.3.0'
+          assert manifest['driverSha256'] == hashlib.sha256(driver).hexdigest()
+          assert b'SD865 experimental forced SYSMEM' in driver
+          patch = pathlib.Path('patches/sd865/0001-tu-reference-bound-program-state.patch').read_bytes()
+          assert manifest['programReferencePatchSha256'] == hashlib.sha256(patch).hexdigest()
+          pathlib.Path('/tmp/sd865-driver-name.txt').write_text(meta['name'])
+          PY
+          python3 .github/scripts/verify_driver_zip.py \
+            --kind android --variant "$PERF_PROFILE" \
+            --zip "turnip_workdir/mesa-turnip-perf-$PERF_PROFILE-main.zip" \
+            --expect-name "$(cat /tmp/sd865-driver-name.txt)" \
+            --expect-package-version 1 \
+            --report "turnip_workdir/mesa-turnip-perf-$PERF_PROFILE-main.verify.json" \
+            --readelf turnip_workdir/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+
+      - name: Upload Turnip driver ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: turnip-${{ matrix.profile }}-${{ github.run_number }}
+          path: |
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.zip
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.manifest.json
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.verify.json
+          if-no-files-found: error
+          compression-level: 0
