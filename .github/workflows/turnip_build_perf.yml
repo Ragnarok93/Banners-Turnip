@@ -87,7 +87,7 @@ jobs:
               "see build-manifest.json for exact patch hashes, CPU tuning, and build provenance. "
               "Experimental A650 profiles are diagnostic and are not guaranteed stable."
           )
-          p.write_text(json.dumps(meta, indent=2) + "\\n")
+          p.write_text(json.dumps(meta, indent=2) + "\n")
           PY
           zip -q "$GITHUB_WORKSPACE/turnip_workdir/${ZIP_NAME}" libvulkan_freedreno.so meta.json build-manifest.json
           cd "$GITHUB_WORKSPACE"
@@ -179,14 +179,14 @@ jobs:
             printf "| **Build date** | %s |\n\n"         "${BUILD_DATE}"
             printf '%s\n\n' '---'
             printf "### Build Configuration\n\n"
-            printf "Mesa `main` build profile: %s.\n\n" "${PERF_PROFILE}"
+            printf "Mesa \`main\` build profile: %s.\n\n" "${PERF_PROFILE}"
             case "${PERF_PROFILE}" in
               sd865-program-reference) printf "Candidate: borrowed graphics program-state references (lifetime-sensitive; experimental).\n\n" ;;
               sd865-pipeline-512k) printf "Candidate: 512 KiB A650 pipeline suballocation only; graphics program state remains owned.\n\n" ;;
               sd865-sysmem-screen) printf "Diagnostic control: forced SYSMEM only; not presumed faster.\n\n" ;;
               sd865-combined-512k) printf "Combined candidate: borrowed program state + 512 KiB pipeline suballocation.\n\n" ;;
               sd865-combined-sysmem) printf "Combined diagnostic: borrowed program state + 512 KiB pipeline suballocation + forced SYSMEM.\n\n" ;;
-              sd865-cortex-a77) printf "CPU tuning: `-mtune=cortex-a77`; no CPU-specific ISA enabled.\n\n" ;;
+              sd865-cortex-a77) printf "CPU tuning: \`-mtune=cortex-a77\`; no CPU-specific ISA enabled.\n\n" ;;
               generic) printf "Generic AArch64 tuning baseline.\n\n" ;;
             esac
             printf "**Compiler flags:** \`-O3 -fno-plt -flto=thin\`"
