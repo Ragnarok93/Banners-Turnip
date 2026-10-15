@@ -29,5 +29,5 @@ patch256 = (root / "patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch").re
 assert "fd_dev_gpu_id(&physical_device->dev_id) == 650" in patch256 and "256 : 128" in patch256
 reference = (root / "patches/sd865/0001-tu-reference-bound-program-state.patch").read_text()
 assert "struct tu_program_state *program" in reference and "cmd->state.program = &pipeline->program" in reference and "tu_null_program_state" in reference
-print("PASS: seven profiles present; pipeline-only and SYSMEM-only controls remain isolated.")
+print("PASS: eight profiles present; pipeline-only and SYSMEM-only controls remain isolated.")
 print("NOTE: static checks do not establish runtime safety or performance.")
