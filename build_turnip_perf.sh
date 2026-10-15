@@ -3,7 +3,7 @@
 green='\033[0;32m'
 red='\033[0;31m'
 nocolor='\033[0m'
-deps="git meson ninja patchelf unzip curl pip flex bison zip glslangValidator ccache"
+deps="git meson ninja patchelf unzip curl flex bison zip glslangValidator ccache"
 workdir="$(pwd)/turnip_workdir"
 ndkver="android-ndk-r29"
 ndk="$workdir/$ndkver/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -123,8 +123,13 @@ check_deps(){
 		echo "Please install missing dependencies" && exit 1
 	fi
 
+	PIP_CMD="$(command -v pip || command -v pip3 || true)"
+	if [ -z "$PIP_CMD" ]; then
+		echo "Missing pip or pip3; cannot install Python Mako dependency" >&2
+		exit 1
+	fi
 	echo "Installing python Mako dependency..."
-	pip install mako &> /dev/null || true
+	"$PIP_CMD" install mako &> /dev/null || true
 }
 
 prepare_workdir(){
