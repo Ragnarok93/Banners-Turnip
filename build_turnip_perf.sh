@@ -14,6 +14,7 @@ mesa_commit="${MESA_COMMIT:-}"
 perf_profile="${PERF_PROFILE:-generic}"
 program_reference=0
 pipeline_512k=0
+pipeline_256k=0
 pipeline_a650_kib=128
 sysmem_screen=0
 render_mode_a650="auto"
@@ -47,6 +48,16 @@ case "$perf_profile" in
 		perf_description="SD865 A650 isolated candidate: 512 KiB pipeline backing BOs; owned graphics program state"
 		pipeline_512k=1
 		pipeline_a650_kib=512
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-pipeline-256k)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 isolated candidate: 256 KiB pipeline backing BOs; owned graphics program state"
+		pipeline_256k=1
+		pipeline_a650_kib=256
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
@@ -167,6 +178,11 @@ build_lib_for_android(){
 		git apply ../../patches/sd865/0001-tu-reference-bound-program-state.patch
 	fi
 
+	if [ "$pipeline_256k" = "1" ]; then
+		git apply --check ../../patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch
+		git apply ../../patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch
+	fi
+
 	if [ "$pipeline_512k" = "1" ]; then
 		git apply --check ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
 		git apply ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
@@ -281,6 +297,7 @@ EOF
 	DRIVER_SHA=$(sha256sum libvulkan_freedreno.so | cut -d ' ' -f 1)
 	PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0001-tu-reference-bound-program-state.patch" | cut -d ' ' -f 1)
 	PIPELINE_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" | cut -d ' ' -f 1)
+	PIPELINE_256_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch" | cut -d ' ' -f 1)
 	RENDER_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0003-tu-a650-sysmem-screen.patch" | cut -d ' ' -f 1)
 	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
 	# Record only patches actually applied to this profile; source hashes below are
@@ -289,6 +306,10 @@ EOF
 	patch_sep=''
 	if [ "$program_reference" = "1" ]; then
 		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0001-tu-reference-bound-program-state.patch\""
+		patch_sep=','
+	fi
+	if [ "$pipeline_256k" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch\""
 		patch_sep=','
 	fi
 	if [ "$pipeline_512k" = "1" ]; then
@@ -310,6 +331,8 @@ EOF
   "renderModePatchSha256": "${RENDER_PATCH_SHA}",
   "programReference": ${program_reference},
   "pipelineSuballocA650KiB": ${pipeline_a650_kib},
+  "pipelineSuballoc256kPatchApplied": ${pipeline_256k},
+  "pipelineSuballoc256kPatchSha256": "${PIPELINE_256_PATCH_SHA}",
   "pipelineSuballocPatchApplied": ${pipeline_512k},
   "pipelineSuballocPatchSha256": "${PIPELINE_PATCH_SHA}",
   "programReferencePatchSha256": "${PATCH_SHA}",
