@@ -1,0 +1,105 @@
+name: Build Adreno 650 Vulkan 1.4 API probe (experimental)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mesa_ref:
+        description: Optional full Mesa commit SHA; blank resolves Mesa main once and records it
+        required: false
+        type: string
+      build_version:
+        description: Artifact build version label
+        required: true
+        default: "vk14-probe"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Validate requested Mesa ref
+        env:
+          REQUESTED_MESA_REF: ${{ inputs.mesa_ref }}
+        run: |
+          if [ -n "$REQUESTED_MESA_REF" ] && ! [[ "$REQUESTED_MESA_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "mesa_ref must be a full lowercase SHA" >&2
+            exit 2
+          fi
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          pip3 install --break-system-packages meson mako
+
+      - name: Resolve and checkout Mesa
+        env:
+          REQUESTED_MESA_REF: ${{ inputs.mesa_ref }}
+        run: |
+          mkdir -p turnip_workdir
+          git clone https://gitlab.freedesktop.org/mesa/mesa turnip_workdir/mesa
+          if [ -n "$REQUESTED_MESA_REF" ]; then
+            git -C turnip_workdir/mesa fetch --depth=1 origin "$REQUESTED_MESA_REF"
+            git -C turnip_workdir/mesa checkout --detach FETCH_HEAD
+          fi
+          echo "MESA_COMMIT=$(git -C turnip_workdir/mesa rev-parse HEAD)" >> "$GITHUB_ENV"
+          git -C turnip_workdir/mesa log -1 --format='%H%n%ci%n%s' | tee mesa-source.txt
+
+      - name: Apply only the API-version probe
+        run: |
+          git -C turnip_workdir/mesa apply --check "$GITHUB_WORKSPACE/patches/a650/0001-vulkan14-api-version-probe.patch"
+          git -C turnip_workdir/mesa apply "$GITHUB_WORKSPACE/patches/a650/0001-vulkan14-api-version-probe.patch"
+          python3 patches/a650/test_vk14_probe.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
+          git -C turnip_workdir/mesa diff --check
+          git -C turnip_workdir/mesa diff --stat
+          git -C turnip_workdir/mesa diff > vk14-probe.patch.diff
+
+      - name: Build experimental driver
+        env:
+          SKIP_SOURCE_DOWNLOAD: "1"
+          TURNIP_VK14_PROBE: "1"
+          BUILD_VERSION: ${{ inputs.build_version }}
+          META_NAME: "Turnip Adreno 650 Vulkan 1.4 API Probe (NON-CONFORMANT)"
+          META_DESC: "Experimental API-version probe only. Vulkan 1.4 feature/limit audit and CTS are not complete; do not treat as conformant or production."
+          BUILD_SUFFIX: "a650-vk14-probe"
+        run: |
+          chmod +x build_turnip.sh
+          ./build_turnip.sh
+
+      - name: Verify artifact labels and provenance
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, zipfile
+          zips = sorted(pathlib.Path("turnip_workdir").glob("mesa-turnip-main-a650-vk14-probe-V*.zip"))
+          if len(zips) != 1:
+              raise SystemExit(f"Expected exactly one probe ZIP, got {len(zips)}")
+          with zipfile.ZipFile(zips[0]) as z:
+              meta = json.loads(z.read("meta.json"))
+              assert "NON-CONFORMANT" in meta["name"]
+              assert "not complete" in meta["description"]
+              assert meta["driverVersion"].startswith("Vulkan 1.4.")
+          pathlib.Path("vk14-probe-artifact.txt").write_text(
+              f"mesaCommit={__import__('os').environ['MESA_COMMIT']}\n"
+              f"artifact={zips[0]}\n"
+              f"name={meta['name']}\n"
+              f"driverVersion={meta['driverVersion']}\n")
+          PY
+
+      - name: Upload probe and source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: turnip-a650-vulkan14-api-probe-${{ github.run_number }}
+          if-no-files-found: error
+          path: |
+            turnip_workdir/mesa-turnip-main-a650-vk14-probe-V*.zip
+            mesa-source.txt
+            vk14-probe.patch.diff
+            vk14-probe-artifact.txt
+            turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
