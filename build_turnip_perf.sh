@@ -19,7 +19,7 @@ sysmem_screen=0
 render_mode_a650="auto"
 platform_sdk="36"
 min_api="28"
-metadata_vulkan="1.4.335"
+metadata_vulkan="1.3.0"
 case "$perf_profile" in
 	generic)
 		cpu_tune_flags=""
