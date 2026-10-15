@@ -61,6 +61,7 @@ jobs:
           git -C turnip_workdir/mesa diff -- src/freedreno/vulkan/tu_device.cc > vk14-probe.patch.diff
           grep -F 'props->apiVersion = TU_API_VERSION;' turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
           python3 patches/a650/test_vk14_probe.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
+          python3 patches/a650/audit_vk14_source.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc --output vk14-source-audit.json
 
       - name: Verify artifact labels and provenance
         run: |
@@ -91,3 +92,4 @@ jobs:
             mesa-source.txt
             vk14-probe.patch.diff
             vk14-probe-artifact.txt
+            vk14-source-audit.json
