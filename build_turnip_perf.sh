@@ -42,17 +42,45 @@ case "$perf_profile" in
 		min_api="$sdkver"
 		metadata_vulkan="1.3.0"
 		;;
-	sd865-pipeline-512k|sd865-sysmem-screen)
+	sd865-pipeline-512k)
 		cpu_tune_flags="-mtune=cortex-a77"
-		perf_description="SD865 A650 candidate: program references and 512 KiB pipeline backing BOs"
+		perf_description="SD865 A650 isolated candidate: 512 KiB pipeline backing BOs; owned graphics program state"
+		pipeline_512k=1
+		pipeline_a650_kib=512
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-sysmem-screen)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 isolated diagnostic: forced SYSMEM rendering; no program-reference or suballocation patch"
+		sysmem_screen=1
+		render_mode_a650="sysmem"
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-combined-512k)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 combined candidate: borrowed graphics program state and 512 KiB pipeline backing BOs"
 		program_reference=1
 		pipeline_512k=1
 		pipeline_a650_kib=512
-		if [ "$perf_profile" = "sd865-sysmem-screen" ]; then
-			sysmem_screen=1
-			render_mode_a650="sysmem"
-			perf_description="Experimental SD865 A650 forced SYSMEM: existing program references and 512 KiB pipeline BOs"
-		fi
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-combined-sysmem)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="SD865 A650 combined diagnostic: borrowed graphics program state, 512 KiB pipeline backing BOs, and forced SYSMEM"
+		program_reference=1
+		pipeline_512k=1
+		pipeline_a650_kib=512
+		sysmem_screen=1
+		render_mode_a650="sysmem"
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
