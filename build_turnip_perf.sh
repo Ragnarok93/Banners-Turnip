@@ -283,10 +283,27 @@ EOF
 	PIPELINE_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" | cut -d ' ' -f 1)
 	RENDER_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0003-tu-a650-sysmem-screen.patch" | cut -d ' ' -f 1)
 	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
+	# Record only patches actually applied to this profile; source hashes below are
+	# retained for reproducibility, but are not a substitute for this applied list.
+	APPLIED_PATCHES_JSON='['
+	patch_sep=''
+	if [ "$program_reference" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0001-tu-reference-bound-program-state.patch\""
+		patch_sep=','
+	fi
+	if [ "$pipeline_512k" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch\""
+		patch_sep=','
+	fi
+	if [ "$sysmem_screen" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0003-tu-a650-sysmem-screen.patch\""
+	fi
+	APPLIED_PATCHES_JSON+=']'
 	cat <<EOF >"build-manifest.json"
 {
   "mesaCommit": "${MESA_SOURCE_SHA}",
   "profile": "${perf_profile}",
+  "appliedPatches": ${APPLIED_PATCHES_JSON},
   "builderCommit": "${BUILDER_SHA}",
   "renderModeA650": "${render_mode_a650}",
   "renderModePatchApplied": ${sysmem_screen},
