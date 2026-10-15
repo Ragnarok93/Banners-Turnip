@@ -12,10 +12,19 @@ from pathlib import Path
 import re
 
 p = argparse.ArgumentParser()
-p.add_argument("--source", type=Path, required=True)
+p.add_argument("--source", type=Path, required=True,
+               help="C/C++ source file or directory to scan recursively")
 p.add_argument("--output", type=Path, required=True)
 a = p.parse_args()
-lines = a.source.read_text().splitlines()
+if a.source.is_dir():
+    source_files = sorted(
+        path for path in a.source.rglob("*")
+        if path.is_file() and path.suffix in {".c", ".cc", ".cpp", ".h", ".hh", ".hpp"}
+    )
+else:
+    source_files = [a.source]
+if not source_files:
+    raise SystemExit(f"No C/C++ source files found under {a.source}")
 
 requirements = {
     "features": [
@@ -34,6 +43,7 @@ requirements = {
 report = {
     "scope": "static source screening only; not device capability or CTS",
     "source": str(a.source),
+    "source_files_scanned": len(source_files),
     "features": {},
     "limits": {},
     "missing": [],
@@ -41,14 +51,24 @@ report = {
 for category, fields in requirements.items():
     for field in fields:
         hits = []
-        pattern = re.compile(r"\b(?:features|props)->" + re.escape(field) + r"\s*=")
-        for i, line in enumerate(lines):
-            if pattern.search(line):
-                expr = line.strip()
-                # Keep the first continuation line for conditional assignments.
-                if expr.rstrip().endswith("=") and i + 1 < len(lines):
-                    expr += " " + lines[i + 1].strip()
-                hits.append({"line": i + 1, "assignment": expr})
+        # Mesa uses both feature-struct assignments and nested VkPhysicalDeviceLimits
+        # assignments such as props->limits.maxViewportDimensions.
+        pattern = re.compile(
+            r"\b(?:features|props)->(?:limits\.)?" + re.escape(field) + r"\s*="
+        )
+        for source_file in source_files:
+            lines = source_file.read_text(errors="replace").splitlines()
+            for i, line in enumerate(lines):
+                if pattern.search(line):
+                    expr = line.strip()
+                    # Keep the first continuation line for conditional assignments.
+                    if expr.rstrip().endswith("=") and i + 1 < len(lines):
+                        expr += " " + lines[i + 1].strip()
+                    hits.append({
+                        "file": str(source_file),
+                        "line": i + 1,
+                        "assignment": expr,
+                    })
         report[category][field] = hits
         if not hits:
             report["missing"].append(f"{category}.{field}")
