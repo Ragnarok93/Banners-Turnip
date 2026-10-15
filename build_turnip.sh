@@ -76,6 +76,16 @@ build_lib_for_android(){
 	# KGSL fixes every leg ships (patches/common/SOURCE); fails the build if one does not land.
 	bash ../../patches/common/apply_common.sh . || { echo -e "${red}patches/common did not apply, aborting!${nocolor}"; exit 1; }
 
+	# Explicit Vulkan 1.4 API-version probe. This changes only the reported
+	# apiVersion generation gate; it does NOT assert feature/limit support.
+	# Keep it separate from performance profiles and fail closed on source drift.
+	if [ "${TURNIP_VK14_PROBE:-0}" = "1" ]; then
+		echo "Applying experimental A650 Vulkan 1.4 API-version probe (not conformant)"
+		git apply --check ../../patches/a650/0001-vulkan14-api-version-probe.patch
+		git apply ../../patches/a650/0001-vulkan14-api-version-probe.patch
+		python3 ../../patches/a650/test_vk14_probe.py --source src/freedreno/vulkan/tu_device.cc
+	fi
+
 	# Apply optional patch series if EXTRA_PATCH is set (e.g. patches/tu8_kgsl_26.patch)
 	if [ -n "$EXTRA_PATCH" ] && [ -f "../../$EXTRA_PATCH" ]; then
 		echo "Applying patch series: $EXTRA_PATCH"
