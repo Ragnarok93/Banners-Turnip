@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Failure-only Adreno 650 / FF7R Turnip KGSL allocation diagnostic.
+
+Run against a clean, pinned Mesa source checkout. Strict source anchors ensure a
+changed upstream implementation fails closed instead of making a silent no-op.
+Enable runtime stderr markers with TU_A650_KGSL_ALLOC_TRACE=1. This does NOT
+modify Vulkan caps, allocation flags, result values or kernel ioctl behavior.
+"""
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import re
+
+MARKER = "FF7R-A650-KGSL-ALLOC"
+
+
+def add_includes(source: str) -> str:
+    match = re.search(r"^#include [<\"][^>\"]+[>\"]\s*$", source, re.MULTILINE)
+    if match is None:
+        raise ValueError("No C++ include directive found")
+    return (source[:match.start()] +
+            "#include <atomic>\n#include <cerrno>\n#include <cstdio>\n#include <cstdlib>\n#include <sys/resource.h>\n" +
+            source[match.start():])
+
+
+def instrument_kgsl(source: str) -> str:
+    if MARKER in source:
+        raise ValueError("KGSL code already instrumented")
+    pattern = re.compile(
+        r"(ret\s*=\s*safe_ioctl\s*\(\s*dev->physical_device->local_fd\s*,"
+        r"\s*IOCTL_KGSL_GPUMEM_ALLOC_ID\s*,\s*&req\s*\)\s*;\s*"
+        r"if\s*\(\s*ret\s*\)\s*\{)",
+        flags=re.MULTILINE)
+    matches = list(pattern.finditer(source))
+    if len(matches) != 1:
+        raise ValueError(f"Expected exactly one GPUMEM_ALLOC_ID failure branch, got {len(matches)}")
+    # Do not modify the existing error/return branch: only add stderr telemetry.
+    add = r'''
+      // Opt-in, failure-only diagnostic; no live BO addresses or client data.
+      const int ff7r_saved_errno = errno;
+      static std::atomic<unsigned> ff7r_log_count { 0u };
+      if (const char* trace = std::getenv("TU_A650_KGSL_ALLOC_TRACE");
+          trace && trace[0] == '1' && trace[1] == '\0'
+          && ff7r_log_count.fetch_add(1u, std::memory_order_relaxed) < 128u) {
+         std::fprintf(stderr,
+            "FF7R-A650-KGSL-ALLOC stage=gpumem_alloc_id errno=%d"
+            " request_bytes=%llu align_bytes=%llu bo_flags=%llu"
+            " request_flags=%llu force_32bit=%d replayable=%d\n",
+            ff7r_saved_errno,
+            static_cast<unsigned long long>(size),
+            static_cast<unsigned long long>(align),
+            static_cast<unsigned long long>(flags),
+            static_cast<unsigned long long>(req.flags),
+            (req.flags & KGSL_MEMFLAGS_FORCE_32BIT) ? 1 : 0,
+            (flags & TU_BO_ALLOC_REPLAYABLE) ? 1 : 0);
+      // Sample only on the first and each 32nd recorded opt-in error:
+      // avoid /proc reads in normal gameplay and after the 128-event cap.
+      static std::atomic<unsigned> ff7r_pressure_count { 0u };
+      const unsigned ff7r_press_seq =
+         ff7r_pressure_count.fetch_add(1u, std::memory_order_relaxed);
+      if ((ff7r_press_seq & 31u) == 0u) {
+         long long mem_available_kib = -1;
+         long long mem_total_kib = -1;
+         long long swap_free_kib = -1;
+         long long committed_as_kib = -1;
+         long long cma_free_kib = -1;
+         long long vm_rss_kib = -1;
+         long long vm_swap_kib = -1;
+         long long vm_size_kib = -1;
+         long long address_limit_bytes = -1;
+         char ff7r_line[256];
+
+         if (FILE* info = std::fopen("/proc/meminfo", "r")) {
+            while (std::fgets(ff7r_line, sizeof(ff7r_line), info)) {
+               if (std::sscanf(ff7r_line, "MemAvailable: %lld",
+                               &mem_available_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "MemTotal: %lld",
+                               &mem_total_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "SwapFree: %lld",
+                               &swap_free_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "Committed_AS: %lld",
+                               &committed_as_kib) == 1)
+                  continue;
+               if (std::sscanf(ff7r_line, "CmaFree: %lld",
+                               &cma_free_kib) == 1)
+                  continue;
+            }
+            std::fclose(info);
+         }
+         if (FILE* status = std::fopen("/proc/self/status", "r")) {
+            while (std::fgets(ff7r_line, sizeof(ff7r_line), status)) {
+               long long field_value = 0;
+               if (std::sscanf(ff7r_line, "VmRSS: %lld", &field_value) == 1)
+                  vm_rss_kib = field_value;
+               else if (std::sscanf(ff7r_line, "VmSwap: %lld", &field_value) == 1)
+                  vm_swap_kib = field_value;
+               else if (std::sscanf(ff7r_line, "VmSize: %lld", &field_value) == 1)
+                  vm_size_kib = field_value;
+            }
+            std::fclose(status);
+         }
+         struct rlimit ff7r_limit;
+         if (getrlimit(RLIMIT_AS, &ff7r_limit) == 0 &&
+             ff7r_limit.rlim_cur != RLIM_INFINITY)
+            address_limit_bytes = static_cast<long long>(ff7r_limit.rlim_cur);
+
+         std::fprintf(stderr,
+            "FF7R-A650-KGSL-PRESSURE stage=alloc_enomem"
+            " mem_available_kib=%lld mem_total_kib=%lld"
+            " swap_free_kib=%lld committed_as_kib=%lld cma_free_kib=%lld"
+            " vm_rss_kib=%lld"
+            " vm_swap_kib=%lld vm_size_kib=%lld rlimit_as_bytes=%lld\n",
+            mem_available_kib, mem_total_kib, swap_free_kib,
+            committed_as_kib, cma_free_kib, vm_rss_kib, vm_swap_kib,
+            vm_size_kib, address_limit_bytes);
+      }
+      }
+      errno = ff7r_saved_errno;
+'''
+    pos = matches[0].end()
+    return add_includes(source[:pos] + add + source[pos:])
+
+
+def instrument_tu_device(source: str) -> str:
+    if "FF7R-A650-TU-ALLOC" in source:
+        raise ValueError("Turnip code already instrumented")
+    start = source.find("tu_AllocateMemory(")
+    if start < 0:
+        raise ValueError("No tu_AllocateMemory function found")
+    end = source.find("\ntu_allocate_lazy_memory(", start)
+    if end < 0:
+        raise ValueError("No next function boundary")
+    body = source[start:end]
+    # Mesa has several `if (result != VK_SUCCESS)` blocks for imported
+    # hardware buffers. Instrument only the final failed BO allocation path,
+    # identified by its memory-report+destroy cleanup, not the AHB fallbacks.
+    branches = list(re.finditer(r"if\s*\(result\s*!=\s*VK_SUCCESS\)\s*\{", body))
+    candidates = []
+    for candidate in branches:
+        nearby = body[candidate.end():candidate.end() + 650]
+        # The failed BO allocation block starts with the destructor call
+        # followed immediately by the Vulkan memory failure report. Merely
+        # finding those names later would also match an earlier AHB block.
+        if (re.match(
+                r"\s*vk_device_memory_destroy\s*\(\s*&device->vk\s*,"
+                r"\s*pAllocator\s*,\s*&mem->vk\s*\)\s*;"
+                r"\s*tu_memory_emit_report",
+                nearby)
+                and "return result;" in nearby):
+            candidates.append(candidate)
+    if len(candidates) != 1:
+        raise ValueError(f"Expected one final failed BO allocation branch, got {len(candidates)}")
+    add = r'''
+      // Opt-in failure-only root-cause stage, no memory behavior changes.
+      static std::atomic<unsigned> ff7r_tu_log_count { 0u };
+      if (const char* trace = std::getenv("TU_A650_KGSL_ALLOC_TRACE");
+          trace && trace[0] == '1' && trace[1] == '\0'
+          && ff7r_tu_log_count.fetch_add(1u, std::memory_order_relaxed) < 128u) {
+         std::fprintf(stderr,
+            "FF7R-A650-TU-ALLOC stage=tu_allocate_failure vkresult=%d"
+            " requested_bytes=%llu memory_type=%u heap_used_bytes=%llu"
+            " heap_size_bytes=%llu allocate_flags=%u\n",
+            static_cast<int>(result),
+            static_cast<unsigned long long>(pAllocateInfo->allocationSize),
+            pAllocateInfo->memoryTypeIndex,
+            static_cast<unsigned long long>(p_atomic_read(&mem_heap->used)),
+            static_cast<unsigned long long>(mem_heap->size),
+            flags_info ? static_cast<unsigned>(flags_info->flags) : 0u);
+      }
+'''
+    anchor = candidates[0].end()
+    body = body[:anchor] + add + body[anchor:]
+    return add_includes(source[:start] + body + source[end:])
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("mesa", type=Path, nargs="?", default=Path("."))
+    args = p.parse_args()
+    kgsl = args.mesa / "src/freedreno/vulkan/tu_knl_kgsl.cc"
+    device = args.mesa / "src/freedreno/vulkan/tu_device.cc"
+    # Fail closed; make no edits until both input structures are validated.
+    updated_kgsl = instrument_kgsl(kgsl.read_text())
+    updated_device = instrument_tu_device(device.read_text())
+    kgsl.write_text(updated_kgsl)
+    device.write_text(updated_device)
+    print("FF7R-A650: inserted bounded failure-only KGSL errno and tu_AllocateMemory result diagnostics")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

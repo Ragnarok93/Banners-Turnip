@@ -117,6 +117,14 @@ build_lib_for_android(){
 	export LDFLAGS="-fuse-ld=lld"
 	export CFLAGS="-D__ANDROID__ -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
 	export CXXFLAGS="-D__ANDROID__ -Wno-error -Wno-deprecated-declarations -Wno-incompatible-pointer-types-discards-qualifiers -Wno-incompatible-pointer-types"
+	# Explicit opt-in A650 flavor. Armv8 baseline remains unchanged to
+	# preserve compatibility with both Kryo 585 performance/efficiency cores.
+	if [ "${TURNIP_A650_FF7R:-0}" = "1" ]; then
+		export CFLAGS="$CFLAGS -O3 -flto=thin -mtune=cortex-a77"
+		export CXXFLAGS="$CXXFLAGS -O3 -flto=thin -mtune=cortex-a77"
+		export LDFLAGS="$LDFLAGS -flto=thin"
+		echo "A650 FF7R flavor: O3 + ThinLTO + Cortex-A77 tuning, generic armv8 ISA retained."
+	fi
 
 	GITHASH=$(git rev-parse --short HEAD)
 

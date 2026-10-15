@@ -1,0 +1,85 @@
+name: Turnip Adreno 650 FF7R KGSL diagnostic AdrenoTools ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/ff7r-a650-kgsl-oom-20261012
+    paths:
+      - build_turnip.sh
+      - patches/a650/**
+      - tests/test_ff7r_a650_kgsl_diag.py
+      - .github/workflows/turnip_a650_ff7r_oom_diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-a650:
+    name: Pinned Mesa A650 KGSL OOM diagnostics
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - name: Checkout Turnip fork
+        uses: actions/checkout@v4
+
+      - name: Validate optional instrumentation tests
+        run: python3 -m unittest discover -s tests -p 'test_ff7r_a650_kgsl_diag.py' -v
+
+      - name: Pin Mesa version and set unique package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin="$(tr -d '[:space:]' < mesa_hash.txt)"
+          [[ "$pin" =~ ^[0-9a-f]{40}$ ]] || exit 9
+          echo "MESA_COMMIT=$pin" >> "$GITHUB_ENV"
+          echo "BUILD_VERSION=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "BUILD_SUFFIX=A650-FF7R-KGSL-Diag-${GITHUB_SHA:0:12}" >> "$GITHUB_ENV"
+          echo "META_NAME=Banners Turnip A650 FF7R KGSL OOM Diagnostic ${GITHUB_SHA:0:12}" >> "$GITHUB_ENV"
+          echo "META_DESC=SD865 Adreno 650 pinned Mesa $pin; optional TU_A650_KGSL_ALLOC_TRACE=1, no driver memory overrides" >> "$GITHUB_ENV"
+
+      - name: Install standard Banners Turnip dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          pip3 install --break-system-packages meson mako
+
+      - name: Compile pinned Adreno 650 performance flavor with fail-closed KGSL diagnostics
+        shell: bash
+        env:
+          EXTRA_SCRIPT: patches/a650/instrument_kgsl_oom.py
+          TURNIP_A650_FF7R: "1"
+        run: |
+          set -euo pipefail
+          chmod +x build_turnip.sh
+          bash build_turnip.sh
+
+      - name: Validate ELF, Mesa provenance, diagnostics and ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C turnip_workdir/mesa rev-parse HEAD)" = "$MESA_COMMIT"
+          grep -Fq 'FF7R-A650-KGSL-ALLOC' turnip_workdir/mesa/src/freedreno/vulkan/tu_knl_kgsl.cc
+          grep -Fq 'FF7R-A650-TU-ALLOC' turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
+          f="$(find turnip_workdir -maxdepth 1 -name 'mesa-turnip-main-A650-FF7R-KGSL-Diag-*.zip' -print -quit)"
+          test -n "$f"
+          unzip -t "$f"
+          scratch="$(mktemp -d)"
+          unzip -q "$f" -d "$scratch"
+          test -s "$scratch/libvulkan_freedreno.so"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['libraryName']=='libvulkan_freedreno.so'; assert 'A650' in d['name']" "$scratch/meta.json"
+          readelf -h "$scratch/libvulkan_freedreno.so" | grep -q AArch64
+          grep -aFq 'FF7R-A650-KGSL-ALLOC' "$scratch/libvulkan_freedreno.so"
+          grep -aFq 'FF7R-A650-TU-ALLOC' "$scratch/libvulkan_freedreno.so"
+          sha256sum "$f" | tee "$f.sha256"
+          echo "A650_PINNED_DIAGNOSTIC_ZIP=$f" >> "$GITHUB_ENV"
+
+      - name: Upload installable AdrenoTools ZIP and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: A650-FF7R-Turnip-KGSL-pinned-${{ github.sha }}
+          path: |
+            turnip_workdir/mesa-turnip-main-A650-FF7R-KGSL-Diag-*.zip
+            turnip_workdir/mesa-turnip-main-A650-FF7R-KGSL-Diag-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
