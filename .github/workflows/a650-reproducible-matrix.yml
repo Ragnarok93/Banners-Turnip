@@ -1,0 +1,101 @@
+name: A650 Reproducible Candidate Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      mesa_commit:
+        description: Optional full 40-character Mesa commit SHA. Empty resolves Mesa main once for the entire matrix.
+        type: string
+        required: false
+        default: ""
+  push:
+    branches:
+      - feature/a650-unified-vulkan14-20261015
+    paths:
+      - "build_turnip_perf.sh"
+      - "patches/**"
+      - ".github/workflows/a650-reproducible-matrix.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-mesa:
+    runs-on: ubuntu-latest
+    outputs:
+      mesa_sha: ${{ steps.resolve.outputs.mesa_sha }}
+    steps:
+      - name: Resolve one immutable Mesa revision for all candidates
+        id: resolve
+        env:
+          REQUESTED_MESA_COMMIT: ${{ inputs.mesa_commit }}
+        run: |
+          set -euo pipefail
+          if [ -n "${REQUESTED_MESA_COMMIT}" ]; then
+            if ! [[ "${REQUESTED_MESA_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "mesa_commit must be a full lowercase 40-character SHA" >&2
+              exit 2
+            fi
+            mesa_sha="${REQUESTED_MESA_COMMIT}"
+          else
+            mesa_sha="$(git ls-remote https://gitlab.freedesktop.org/mesa/mesa refs/heads/main | cut -f1)"
+          fi
+          test "${#mesa_sha}" -eq 40
+          echo "mesa_sha=${mesa_sha}" >> "$GITHUB_OUTPUT"
+          echo "All matrix candidates will use Mesa ${mesa_sha}"
+
+  build:
+    needs: resolve-mesa
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        profile:
+          - generic
+          - sd865-cortex-a77
+          - sd865-program-reference
+          - sd865-pipeline-512k
+          - sd865-sysmem-screen
+          - sd865-combined-512k
+          - sd865-combined-sysmem
+    env:
+      PERF_PROFILE: ${{ matrix.profile }}
+      MESA_COMMIT: ${{ needs.resolve-mesa.outputs.mesa_sha }}
+      BUILD_VERSION: matrix-${{ github.run_number }}
+    steps:
+      - name: Checkout branch under test
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build patchelf unzip flex bison git perl python3-pip \
+            glslang-tools curl zip patch ccache
+          python3 -m pip install --break-system-packages meson mako
+
+      - name: Check shell syntax
+        run: |
+          set -euo pipefail
+          bash -n build_turnip_perf.sh
+          bash -n patches/common/apply_common.sh
+
+      - name: Build candidate against pinned Mesa
+        run: |
+          set -euo pipefail
+          chmod +x build_turnip_perf.sh
+          ./build_turnip_perf.sh 2>&1 | tee "build-${PERF_PROFILE}.log"
+
+      - name: Upload candidate and build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a650-${{ matrix.profile }}-mesa-${{ needs.resolve-mesa.outputs.mesa_sha }}
+          if-no-files-found: warn
+          path: |
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.zip
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.manifest.json
+            build-${{ matrix.profile }}.log
+          retention-days: 14
