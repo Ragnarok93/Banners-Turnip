@@ -9,6 +9,11 @@ on:
         options:
           - generic
           - sd865-cortex-a77
+          - sd865-program-reference
+          - sd865-pipeline-512k
+          - sd865-sysmem-screen
+          - sd865-combined-512k
+          - sd865-combined-sysmem
         default: generic
         required: true
 
@@ -62,24 +67,29 @@ jobs:
             echo "Tag already exists — using ${TAG}"
           fi
 
-          # Repack ZIP with updated meta.json
+          # Preserve the driver's actual API metadata; never stamp Vulkan 1.4 onto every profile.
           SRC=$(ls "turnip_workdir/mesa-turnip-perf-${PERF_PROFILE}-"*.zip | head -1)
+          MANIFEST="turnip_workdir/mesa-turnip-perf-${PERF_PROFILE}-main.manifest.json"
+          test -f "$SRC"
+          test -f "$MANIFEST"
           mkdir -p /tmp/turnip-repack && cd /tmp/turnip-repack
           unzip -q "$GITHUB_WORKSPACE/$SRC"
-          cat > meta.json << METAEOF
-          {
-            "schemaVersion": 1,
-            "name": "${FULL_NAME}",
-            "description": "${PERF_PROFILE} Mesa main performance build (git ${GITHASH}). O3 + ThinLTO; profile-specific CPU tuning is recorded in the release notes. KGSL.",
-            "author": "The412Banner",
-            "packageVersion": "1",
-            "vendor": "Mesa",
-            "driverVersion": "Vulkan 1.4.335",
-            "minApi": 28,
-            "libraryName": "libvulkan_freedreno.so"
-          }
-          METAEOF
-          zip -q "$GITHUB_WORKSPACE/turnip_workdir/${ZIP_NAME}" libvulkan_freedreno.so meta.json
+          cp "$GITHUB_WORKSPACE/$MANIFEST" build-manifest.json
+          export FULL_NAME PERF_PROFILE GITHASH
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path("meta.json")
+          meta = json.loads(p.read_text())
+          meta["name"] = os.environ["FULL_NAME"]
+          meta["description"] = (
+              f'{os.environ["PERF_PROFILE"]} Mesa build (git {os.environ["GITHASH"]}); '
+              "see build-manifest.json for exact patch hashes, CPU tuning, and build provenance. "
+              "Experimental A650 profiles are diagnostic and are not guaranteed stable."
+          )
+          p.write_text(json.dumps(meta, indent=2) + "\\n")
+          PY
+          zip -q "$GITHUB_WORKSPACE/turnip_workdir/${ZIP_NAME}" libvulkan_freedreno.so meta.json build-manifest.json
           cd "$GITHUB_WORKSPACE"
 
           # Increment build number and commit
@@ -112,6 +122,7 @@ jobs:
           echo "${{ steps.info.outputs.githash_full }}" > release-info/githash_full.txt
           echo "${{ steps.info.outputs.commit_date }}"  > release-info/commit_date.txt
           echo "${{ steps.info.outputs.commit_title }}" > release-info/commit_title.txt
+          echo "${{ inputs.profile }}"                 > release-info/profile.txt
 
       - name: Upload release info
         uses: actions/upload-artifact@v4
@@ -152,6 +163,7 @@ jobs:
           GITHASH_FULL=$(cat release-info/githash_full.txt)
           COMMIT_DATE=$(cat release-info/commit_date.txt)
           COMMIT_TITLE=$(cat release-info/commit_title.txt)
+          PERF_PROFILE=$(cat release-info/profile.txt)
           MESA_URL="https://gitlab.freedesktop.org/mesa/mesa/-/commit/${GITHASH_FULL}"
 
           {
