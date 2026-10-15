@@ -24,14 +24,22 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
 
-      - name: Validate requested Mesa ref
+      - name: Resolve pinned Mesa commit
         env:
           REQUESTED_MESA_REF: ${{ inputs.mesa_ref }}
         run: |
-          if [ -n "$REQUESTED_MESA_REF" ] && ! [[ "$REQUESTED_MESA_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "mesa_ref must be a full lowercase SHA" >&2
-            exit 2
+          if [ -n "$REQUESTED_MESA_REF" ]; then
+            if ! [[ "$REQUESTED_MESA_REF" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "mesa_ref must be a full lowercase SHA" >&2
+              exit 2
+            fi
+            MESA_SHA="$REQUESTED_MESA_REF"
+          else
+            MESA_SHA="$(git ls-remote https://gitlab.freedesktop.org/mesa/mesa refs/heads/main | cut -f1)"
           fi
+          test "${#MESA_SHA}" -eq 40
+          echo "MESA_COMMIT=$MESA_SHA" >> "$GITHUB_ENV"
+          echo "Resolved Mesa SHA: $MESA_SHA" | tee mesa-source.txt
 
       - name: Install dependencies
         run: |
@@ -39,31 +47,9 @@ jobs:
           sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
           pip3 install --break-system-packages meson mako
 
-      - name: Resolve and checkout Mesa
-        env:
-          REQUESTED_MESA_REF: ${{ inputs.mesa_ref }}
-        run: |
-          mkdir -p turnip_workdir
-          git clone https://gitlab.freedesktop.org/mesa/mesa turnip_workdir/mesa
-          if [ -n "$REQUESTED_MESA_REF" ]; then
-            git -C turnip_workdir/mesa fetch --depth=1 origin "$REQUESTED_MESA_REF"
-            git -C turnip_workdir/mesa checkout --detach FETCH_HEAD
-          fi
-          echo "MESA_COMMIT=$(git -C turnip_workdir/mesa rev-parse HEAD)" >> "$GITHUB_ENV"
-          git -C turnip_workdir/mesa log -1 --format='%H%n%ci%n%s' | tee mesa-source.txt
-
-      - name: Apply only the API-version probe
-        run: |
-          git -C turnip_workdir/mesa apply --check "$GITHUB_WORKSPACE/patches/a650/0001-vulkan14-api-version-probe.patch"
-          git -C turnip_workdir/mesa apply "$GITHUB_WORKSPACE/patches/a650/0001-vulkan14-api-version-probe.patch"
-          python3 patches/a650/test_vk14_probe.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
-          git -C turnip_workdir/mesa diff --check
-          git -C turnip_workdir/mesa diff --stat
-          git -C turnip_workdir/mesa diff > vk14-probe.patch.diff
-
       - name: Build experimental driver
         env:
-          SKIP_SOURCE_DOWNLOAD: "1"
+          MESA_COMMIT: ${{ env.MESA_COMMIT }}
           TURNIP_VK14_PROBE: "1"
           BUILD_VERSION: ${{ inputs.build_version }}
           META_NAME: "Turnip Adreno 650 Vulkan 1.4 API Probe (NON-CONFORMANT)"
@@ -72,11 +58,15 @@ jobs:
         run: |
           chmod +x build_turnip.sh
           ./build_turnip.sh
+          git -C turnip_workdir/mesa diff --check
+          git -C turnip_workdir/mesa diff -- src/freedreno/vulkan/tu_device.cc > vk14-probe.patch.diff
+          grep -F 'props->apiVersion = TU_API_VERSION;' turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
+          python3 patches/a650/test_vk14_probe.py --source turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
 
       - name: Verify artifact labels and provenance
         run: |
           python3 - <<'PY'
-          import json, pathlib, zipfile
+          import json, os, pathlib, zipfile
           zips = sorted(pathlib.Path("turnip_workdir").glob("mesa-turnip-main-a650-vk14-probe-V*.zip"))
           if len(zips) != 1:
               raise SystemExit(f"Expected exactly one probe ZIP, got {len(zips)}")
@@ -86,7 +76,7 @@ jobs:
               assert "not complete" in meta["description"]
               assert meta["driverVersion"].startswith("Vulkan 1.4.")
           pathlib.Path("vk14-probe-artifact.txt").write_text(
-              f"mesaCommit={__import__('os').environ['MESA_COMMIT']}\n"
+              f"mesaCommit={os.environ['MESA_COMMIT']}\n"
               f"artifact={zips[0]}\n"
               f"name={meta['name']}\n"
               f"driverVersion={meta['driverVersion']}\n")
@@ -102,4 +92,3 @@ jobs:
             mesa-source.txt
             vk14-probe.patch.diff
             vk14-probe-artifact.txt
-            turnip_workdir/mesa/src/freedreno/vulkan/tu_device.cc
