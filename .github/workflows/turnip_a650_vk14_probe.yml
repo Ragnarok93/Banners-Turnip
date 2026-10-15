@@ -1,6 +1,13 @@
 name: Build Adreno 650 Vulkan 1.4 API probe (experimental)
 
 on:
+  push:
+    branches:
+      - feature/a650-unified-vulkan14-20261015
+    paths:
+      - '.github/workflows/turnip_a650_vk14_probe.yml'
+      - 'build_turnip.sh'
+      - 'patches/a650/**'
   workflow_dispatch:
     inputs:
       mesa_ref:
