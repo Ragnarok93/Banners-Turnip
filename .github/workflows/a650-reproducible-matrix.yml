@@ -56,6 +56,7 @@ jobs:
           - sd865-cortex-a77
           - sd865-program-reference
           - sd865-pipeline-512k
+          - sd865-pipeline-256k
           - sd865-sysmem-screen
           - sd865-combined-512k
           - sd865-combined-sysmem
