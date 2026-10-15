@@ -66,7 +66,7 @@ The API-version probe changes reported API version without implementing or valid
 
 ## Reproducible candidate matrix
 
-Added `.github/workflows/a650-reproducible-matrix.yml`. It resolves Mesa `main` to one full commit SHA once, or accepts a caller-supplied SHA, then builds the generic baseline, Cortex-A77 baseline, each isolated A650 candidate, and the combined candidates against that exact revision. It caps parallel builds at two, does not publish releases or mutate repository contents, and uploads each build log plus any ZIP/manifest artifacts. The workflow is triggered by relevant pushes to this branch and can also be run manually. The first run is queued; no build result is claimed until its jobs finish.
+Added `.github/workflows/a650-reproducible-matrix.yml`. It resolves Mesa `main` to one full commit SHA once, or accepts a caller-supplied SHA, then builds the generic baseline, Cortex-A77 baseline, each isolated A650 candidate, and the combined candidates against that exact revision. It caps parallel builds at two, does not publish releases or mutate repository contents, and uploads each build log plus any ZIP/manifest artifacts. The workflow is triggered by relevant pushes to this branch and can also be run manually. The matrix and API-probe workflows have been triggered by these commits. No candidate build result is considered validated until the jobs finish. The previous API-probe run did compile and package the probe, but its source audit failed because it scanned only `tu_device.cc` and could not see viewport-limit assignments elsewhere in the Vulkan source tree. The audit now scans the full Vulkan source directory and recognizes indexed limit assignments; rerun results are pending.
 
 ## Follow-up build-harness audit
 
