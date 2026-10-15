@@ -72,7 +72,7 @@ jobs:
           git clone --filter=blob:none https://gitlab.freedesktop.org/mesa/mesa.git mesa
           git -C mesa fetch --depth=1 origin "$MESA_SHA"
           git -C mesa checkout --detach "$MESA_SHA"
-          bash patches/common/apply_common.sh mesa
+          (cd mesa && bash ../patches/common/apply_common.sh .)
           for patch in patches/sd865/*.patch; do
             git -C mesa apply --check "$GITHUB_WORKSPACE/$patch"
           done
