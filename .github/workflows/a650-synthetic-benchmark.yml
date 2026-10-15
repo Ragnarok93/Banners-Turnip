@@ -1,0 +1,176 @@
+name: A650 Synthetic Pre-Device Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      mesa_commit:
+        description: Optional full 40-character Mesa commit SHA; empty resolves Mesa main once.
+        type: string
+        required: false
+        default: ""
+      repetitions:
+        description: Number of host shader-corpus timing repetitions (1-7).
+        type: choice
+        options: ["3", "5", "7"]
+        default: "5"
+        required: true
+  push:
+    branches:
+      - feature/a650-unified-vulkan14-20261015
+    paths:
+      - "build_turnip_perf.sh"
+      - "patches/**"
+      - "benchmarks/a650/**"
+      - ".github/workflows/a650-synthetic-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      mesa_sha: ${{ steps.mesa.outputs.sha }}
+      repetitions: ${{ steps.params.outputs.repetitions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: params
+        env:
+          REQUESTED_REPETITIONS: ${{ inputs.repetitions }}
+        run: |
+          set -euo pipefail
+          reps="${REQUESTED_REPETITIONS:-5}"
+          [[ "$reps" =~ ^(3|5|7)$ ]]
+          echo "repetitions=$reps" >> "$GITHUB_OUTPUT"
+      - id: mesa
+        env:
+          REQUESTED_MESA_COMMIT: ${{ inputs.mesa_commit }}
+        run: |
+          set -euo pipefail
+          if [ -n "${REQUESTED_MESA_COMMIT}" ]; then
+            [[ "${REQUESTED_MESA_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid full Mesa SHA" >&2; exit 2; }
+            sha="$REQUESTED_MESA_COMMIT"
+          else
+            sha="$(git ls-remote https://gitlab.freedesktop.org/mesa/mesa refs/heads/main | cut -f1)"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned Mesa SHA: $sha"
+
+  source-audit:
+    needs: resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate patch applicability and candidate isolation
+        env:
+          MESA_SHA: ${{ needs.resolve.outputs.mesa_sha }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y git patch python3
+          git clone --filter=blob:none https://gitlab.freedesktop.org/mesa/mesa.git mesa
+          git -C mesa fetch --depth=1 origin "$MESA_SHA"
+          git -C mesa checkout --detach "$MESA_SHA"
+          bash patches/common/apply_common.sh mesa
+          for patch in patches/sd865/*.patch; do
+            git -C mesa apply --check "$GITHUB_WORKSPACE/$patch"
+          done
+          python3 benchmarks/a650/check_profiles.py
+          git -C mesa status --short
+
+  host-shader-corpus:
+    needs: resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host shader compiler
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y glslang-tools python3
+      - name: Run deterministic shader-corpus proxy benchmark
+        env:
+          REPETITIONS: ${{ needs.resolve.outputs.repetitions }}
+          MESA_SHA: ${{ needs.resolve.outputs.mesa_sha }}
+        run: |
+          set -euo pipefail
+          python3 benchmarks/a650/run_shader_corpus.py --repetitions "$REPETITIONS" --output results
+      - name: Upload shader-corpus results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a650-host-shader-corpus-mesa-${{ needs.resolve.outputs.mesa_sha }}
+          path: results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  build-candidates:
+    needs: resolve
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        profile:
+          - generic
+          - sd865-cortex-a77
+          - sd865-program-reference
+          - sd865-pipeline-512k
+          - sd865-sysmem-screen
+          - sd865-combined-512k
+          - sd865-combined-sysmem
+    env:
+      PERF_PROFILE: ${{ matrix.profile }}
+      MESA_COMMIT: ${{ needs.resolve.outputs.mesa_sha }}
+      BUILD_VERSION: synthetic-${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          python3 -m pip install --break-system-packages meson mako
+      - name: Build and time candidate
+        run: |
+          set -euo pipefail
+          start="$(date +%s)"
+          chmod +x build_turnip_perf.sh
+          ./build_turnip_perf.sh 2>&1 | tee "build-${PERF_PROFILE}.log"
+          elapsed="$(( $(date +%s) - start ))"
+          test -f "turnip_workdir/mesa-turnip-perf-${PERF_PROFILE}-main.zip"
+          mkdir -p candidate-results
+          python3 - "$PERF_PROFILE" "$elapsed" "turnip_workdir/mesa-turnip-perf-${PERF_PROFILE}-main.zip" "turnip_workdir/mesa-turnip-perf-${PERF_PROFILE}-main.manifest.json" <<'PY'
+          import hashlib, json, pathlib, sys
+          profile, elapsed, archive, manifest = sys.argv[1:]
+          p = pathlib.Path(archive)
+          data = json.loads(pathlib.Path(manifest).read_text())
+          result = {
+              "profile": profile,
+              "buildElapsedSeconds": int(elapsed),
+              "archiveBytes": p.stat().st_size,
+              "archiveSha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+              "driverSha256": data.get("driverSha256"),
+              "mesaCommit": data.get("mesaCommit"),
+              "builderCommit": data.get("builderCommit"),
+              "pipelineSuballocA650KiB": data.get("pipelineSuballocA650KiB"),
+              "programReference": data.get("programReference"),
+              "renderModeA650": data.get("renderModeA650"),
+              "classification": "BUILD_AND_PACKAGE_METRICS_NOT_GPU_PERFORMANCE",
+          }
+          pathlib.Path("candidate-results/" + profile + ".json").write_text(json.dumps(result, indent=2) + "\n")
+          print(json.dumps(result, indent=2))
+          PY
+      - name: Upload candidate and metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a650-predevice-${{ matrix.profile }}-mesa-${{ needs.resolve.outputs.mesa_sha }}
+          path: |
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.zip
+            turnip_workdir/mesa-turnip-perf-${{ matrix.profile }}-main.manifest.json
+            build-${{ matrix.profile }}.log
+            candidate-results/
+          if-no-files-found: warn
+          retention-days: 14
