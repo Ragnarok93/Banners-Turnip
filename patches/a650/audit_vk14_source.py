@@ -54,7 +54,7 @@ for category, fields in requirements.items():
         # Mesa uses both feature-struct assignments and nested VkPhysicalDeviceLimits
         # assignments such as props->limits.maxViewportDimensions.
         pattern = re.compile(
-            r"\b(?:features|props)->(?:limits\.)?" + re.escape(field) + r"\s*="
+            r"\b(?:features|props)->(?:limits\.)?" + re.escape(field) + r"(?:\s*\[[^\]]+\])*\s*="
         )
         for source_file in source_files:
             lines = source_file.read_text(errors="replace").splitlines()
