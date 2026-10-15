@@ -177,3 +177,28 @@ jobs:
             candidate-results/
           if-no-files-found: warn
           retention-days: 14
+
+  summarize-candidates:
+    if: always()
+    needs: [resolve, build-candidates]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download per-profile results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: a650-predevice-*
+          path: downloaded
+          merge-multiple: true
+      - name: Create CSV and Markdown comparison
+        run: |
+          set -euo pipefail
+          python3 benchmarks/a650/summarize_candidates.py downloaded summary
+      - name: Upload combined report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a650-candidate-comparison
+          path: summary/
+          if-no-files-found: warn
+          retention-days: 14
