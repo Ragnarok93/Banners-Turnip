@@ -16,6 +16,11 @@ on:
           - sd865-combined-sysmem
         default: generic
         required: true
+      mesa_commit:
+        description: Optional full 40-character Mesa commit SHA for reproducible A/B builds
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -37,6 +42,7 @@ jobs:
       - name: Build
         env:
           PERF_PROFILE: ${{ inputs.profile }}
+          MESA_COMMIT: ${{ inputs.mesa_commit }}
         run: |
           chmod +x build_turnip_perf.sh
           export BUILD_VERSION="${{ github.run_number }}"
