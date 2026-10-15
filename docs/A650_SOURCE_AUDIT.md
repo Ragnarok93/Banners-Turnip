@@ -57,6 +57,7 @@ The API-version probe changes reported API version without implementing or valid
 - Separate A650 diagnostic profiles: `ecb1b352984b42afc26c7b06be9d4ce057077c71`
 - Expose profiles and preserve actual metadata / package manifest: `f47a45fe83b8aa34a1bbe95fcc964bc267bec6a9`
 - Correct release notes and shell quoting: `2aba7bcaa419184908fa19ec9b265c57dd0c17b6`
+- Add pinned Mesa commit input for reproducible A/B builds: `5a7d9334f97fdd5dac94fa98030904966ab754f9`
 
 ## Verification status
 
