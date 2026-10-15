@@ -49,7 +49,6 @@ jobs:
 
       - name: Build experimental driver
         env:
-          MESA_COMMIT: ${{ env.MESA_COMMIT }}
           TURNIP_VK14_PROBE: "1"
           BUILD_VERSION: ${{ inputs.build_version }}
           META_NAME: "Turnip Adreno 650 Vulkan 1.4 API Probe (NON-CONFORMANT)"
