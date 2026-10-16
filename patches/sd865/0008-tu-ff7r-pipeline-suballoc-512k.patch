@@ -20,8 +20,12 @@ diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.
 +++ b/src/freedreno/vulkan/tu_device.cc
 @@ -3057,7 +3057,8 @@
        global_size += TU_BORDER_COLOR_COUNT * sizeof(struct bcolor_entry);
- 
+
     tu_bo_suballocator_init(
 -      &device->pipeline_suballoc, device, 128 * 1024,
 +      &device->pipeline_suballoc, device,
 +      (fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024,
+       (enum tu_bo_alloc_flags) (TU_BO_ALLOC_GPU_READ_ONLY |
+                                 TU_BO_ALLOC_ALLOW_DUMP |
+                                 TU_BO_ALLOC_INTERNAL_RESOURCE),
+       "pipeline_suballoc");
