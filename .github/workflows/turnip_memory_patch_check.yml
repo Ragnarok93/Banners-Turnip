@@ -40,3 +40,10 @@ jobs:
           grep -q "The kernel BO exists now, including on a later mapping failure." src/freedreno/vulkan/tu_knl_kgsl.cc
           grep -q "GPUMEM_ALLOC_ID failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
           grep -q "GPUMEM_BIND_RANGES failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("src/freedreno/vulkan/tu_knl_kgsl.cc").read_text()
+          va_query = source.index("get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE")
+          heap_size = source.index("device->heap.size = tu_get_system_heap_size(device);")
+          assert va_query < heap_size, "KGSL VA-size query must precede heap-size calculation"
+          PY
