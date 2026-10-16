@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Fri, 16 Oct 2026 00:00:00 +0000
+Subject: [PATCH] tu/kgsl: add BO lifecycle telemetry to memory-audit profile
+
+Emit allocation/import and final-release events with KGSL handle, rounded
+backing size, and GPU address. This patch is applied only to the explicitly
+selected sd865-memory-audit build, not to performance comparison profiles.
+The events let the capture reviewer reconstruct large live BOs and identify
+whether memory remains live across repeated allocation failures.
+
+---
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
+--- a/src/freedreno/vulkan/tu_knl_kgsl.cc
++++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
+@@ -374,6 +374,9 @@ kgsl_bo_init(struct tu_device *dev,
+ 
+    /* The kernel BO exists now, including on a later mapping failure. */
+    TU_RMV(bo_allocate, dev, bo);
++   mesa_logi("TU_KGSL_MEM event=alloc id=%u size=%llu iova=0x%llx flags=0x%x",
++             bo->gem_handle, (unsigned long long)bo->size,
++             (unsigned long long)bo->iova, (unsigned)flags);
+    VkResult result = VK_SUCCESS;
+ 
+    if (lazy_vma) {
+@@ -448,6 +451,8 @@ kgsl_bo_init_dmabuf(struct tu_device *dev,
+ 
+    tu_dump_bo_init(dev, bo);
++   mesa_logi("TU_KGSL_MEM event=import id=%u size=%llu iova=0x%llx",
++             bo->gem_handle, (unsigned long long)bo->size, (unsigned long long)bo->iova);
+ 
+    *out_bo = bo;
+ 
+@@ -496,6 +501,9 @@ kgsl_bo_finish(struct tu_device *dev, struct tu_bo *bo)
+    if (!p_atomic_dec_zero(&bo->refcnt))
+       return;
+ 
++   mesa_logi("TU_KGSL_MEM event=free id=%u size=%llu iova=0x%llx",
++             bo->gem_handle, (unsigned long long)bo->size, (unsigned long long)bo->iova);
++
+    tu_debug_bos_del(dev, bo);
+    tu_dump_bo_del(dev, bo);
