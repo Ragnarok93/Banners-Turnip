@@ -2,74 +2,64 @@
 
 Target branch: `feature/sd865-memory-pressure-20261016`
 Base: `feature/a650-unified-vulkan14-20261015`
-Control: `sd865-pipeline-512k`; comparisons: `sd865-pipeline-256k`, `generic`
-Device system RAM: 12 GiB (shared UMA; not a 12 GiB GPU allocation budget).
+Performance control: `sd865-pipeline-512k`; comparison: `sd865-pipeline-256k`
+Memory-fix profile: `sd865-memory-audit`
+Pinned Mesa source for the memory-fix profile: `dc671cbf0f76194c72b621205b6cc84e1c914fad` (upstream Mesa mirror snapshot, 2026-10-08).
+Device system RAM: 12 GiB shared UMA; this is not a 12 GiB GPU allocation budget.
+
+## Exact source found
+
+The build script normally clones Mesa `main` at build time, so builds made on different days could silently use different driver code. For the memory-fix profile, the build now checks out the exact source commit above before applying patches. The commit is an upstream Mesa snapshot whose history includes the KGSL syncobj/wait fixes required by `patches/common/apply_common.sh` and the earlier dma-buf allocation-fd leak fix.
+
+Source references:
+- [Pinned upstream Mesa commit](https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/dc671cbf0f76194c72b621205b6cc84e1c914fad)
+- [KGSL backend at that commit](https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/dc671cbf0f76194c72b621205b6cc84e1c914fad/src/freedreno/vulkan/tu_knl_kgsl.cc)
+- [Upstream fix for internally allocated dma-buf FD leaks](https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/9f955af118d0cdabae776d08e36f99f7aa92317b)
+
+The dma-buf FD leak is already fixed upstream in the pinned tree. That leak affects internally allocated *shareable/exportable* BOs, not ordinary offscreen textures, so it should not be presented as the proven cause of the reported DXVK texture-memory failure.
+
+## Implemented source change
+
+`patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch` is applied only by the new `sd865-memory-audit` profile. It makes two narrow changes:
+
+1. Adds the requested byte count to KGSL backing BO allocation, dma-heap allocation, and sparse-bind failure messages. This helps identify which stage failed and how much memory was requested.
+2. Fixes a cleanup gap in `kgsl_bo_init()`: after the kernel BO is allocated, a failed `IOCTL_KGSL_GPUMEM_BIND_RANGES` previously returned an error without freeing that BO. The patch frees it on this failure path and moves the BO-allocation RMV event before mapping so failure cleanup has a matching destroy event. The replayable mapping path remains delegated to `kgsl_bo_user_map()`, which already cleans up its own failures.
+
+This is a failure-path leak fix plus event-driven error diagnostics, not a general cache-reclamation mechanism. It may help if sparse/lazy binding failures are part of the captured workload; it is not yet proven to explain the reported 3.4–3.7 GiB allocation failures.
 
 ## Scope and safety
 
-This work targets Turnip/Freedreno and KGSL memory behavior. Keep DXVK/game changes out of this branch. Keep the existing pipeline slab profile unchanged so memory changes can be compared independently. Do not force GMEM, invent lazy allocation for ordinary Vulkan images, move live allocations, or enable render-target aliasing in the first pass.
+- Keep DXVK/game changes out of this branch.
+- Keep the 512 KiB pipeline profile unchanged as the control.
+- Do not force GMEM, invent lazy allocation for ordinary Vulkan images, move live allocations, or enable render-target aliasing in this pass.
+- Do not retry failed allocations or reclaim live pipeline state based only on an OOM.
+- The new profile is pinned independently of the existing pipeline comparison profiles.
 
-The perf workflow now exposes the existing `sd865-pipeline-256k` profile as a manual choice, so it can be built using the same workflow and compared against the 512 KiB profile. This is a workflow correction, not a driver optimization.
+## What the error evidence means
 
-## Findings that must be measured, not assumed
+- 12 GiB of physical RAM is shared by Android, the game, the driver, and other processes; it is not a GPU-only budget.
+- An OOM near 3.7 GiB is evidence of a pressure point, not proof of a universal 4 GiB A650 limit or physical-contiguity failure.
+- KGSL failures from `GPUMEM_ALLOC_ID`, dma-heap allocation, mapping, and sparse VA binding are different failure stages and should not be treated as interchangeable.
+- GMEM is on-chip tile storage; selecting GMEM does not generally eliminate backing allocations for Vulkan images.
+- Vulkan cannot transparently split arbitrary `VkDeviceMemory` allocations without changing resource/binding semantics.
 
-- A 12 GiB physical RAM total is not the GPU's available budget. Android and other processes share the same DRAM.
-- An OOM near 3.7 GiB is evidence of a limit/pressure point, not proof of a universal 4 GiB A650 limit or physical-contiguity failure.
-- GMEM is on-chip tile storage. Selecting GMEM does not generally eliminate the backing allocations required by Vulkan images.
-- Vulkan drivers cannot transparently split an arbitrary VkDeviceMemory allocation without changing binding/resource semantics.
-- Lazy allocation is not a generic driver-side switch: it requires supported memory types and valid transient-attachment usage/lifetimes.
-- Mesa 26.2.2's KGSL backend has multiple failure points that can surface as `VK_ERROR_OUT_OF_DEVICE_MEMORY`: backing dma-buf allocation, mapping, and sparse-VA bind operations. Instrumentation must identify the stage instead of treating every OOM as the same allocator failure. The exact Mesa commit used by a given build must be audited before patching. Reference snapshot: [`tu_knl_kgsl.cc` in Mesa 26.2.2](https://fossies.org/linux/misc/mesa-26.2.2.tar.xz/mesa-26.2.2/src/freedreno/vulkan/tu_knl_kgsl.cc).
+## Next measurement step
 
-## Implementation sequence
+Build `sd865-memory-audit` from the perf workflow, install it as a separate test build, and repeat the same game/replay, resolution, shader-cache state, and capture window as the control. Capture the new failure-stage/byte-count messages alongside DXVK allocation logs, process RSS/PSS, Android available memory, and frame-time p50/p95/p99. Compare against `sd865-pipeline-512k` and `sd865-pipeline-256k` separately.
 
-### 1. Establish a reproducible baseline
-
-Use the same game build, driver, resolution, scene/replay, shader-cache state, and capture window. Pin the full Mesa SHA in the perf workflow's `mesa_commit` input. Record:
-- driver/Mesa commit and Turnip profile;
-- process RSS/PSS and system available memory before and during the run;
-- Vulkan allocation request size, result, and allocation type/path where available;
-- KGSL/BO allocation/free events and current/peak bytes where they can be tracked accurately;
-- DXVK allocation logs and exact failure timestamp;
-- frame-time p50/p95/p99, crash/hang, and visual result.
-
-Do not call allocator-requested bytes "physical VRAM used": UMA, imported dma-bufs, kernel accounting, and other processes can make these values differ.
-
-### 2. Audit allocation lifetime and accounting
-
-Inspect the exact Mesa commit resolved by the build. Trace all KGSL BO allocation paths (DMA-heap, ION, imported dma-buf), BO destruction, fd ownership, and every error unwind. Check for leaked dma-buf fds/BO references before adding heuristics. Counters must not double-count imports or count memory as freed before its last owner releases it.
-
-Keep allocation telemetry opt-in and event-driven (allocation/free/failure), not per-frame. Track separate requested bytes, live BO bytes, high-water mark, and allocation failure stage; label any counters that cannot account for imports or kernel-side allocations as partial accounting.
-
-### 3. Bounded, safe cache reclamation
-
-Only after the audit identifies reclaimable caches, add an OOM-triggered, bounded reclaim-and-retry path where it is safe:
-- reclaim only entries known to be unused and not referenced by in-flight submissions;
-- preserve normal behavior if no reclaimable bytes exist;
-- retry at most once per failed allocation to avoid retry loops;
-- report original failure, reclaimed bytes, retry result, and cache class;
-- never free live pipeline state, descriptors, or BOs merely because an allocation failed.
-
-Pipeline slab cap/eviction is not approved until the actual slab owner/lifetime and memory domain are confirmed. The 512 KiB performance control remains unchanged; compare the 256 KiB and 512 KiB profiles separately rather than changing both while evaluating memory handling.
-
-### 4. Budget reporting
-
-Audit current `VK_EXT_memory_budget` support and heap reporting. If implemented, verify that the budget is conservative and reflects the driver's observable constraints; do not report all 12 GiB as device-local free memory. Keep any new logging behind an opt-in debug flag and avoid per-frame log spam.
-
-### 5. Separate experiments
-
-Transient/lazy attachments, descriptor pool tuning, GMEM heuristics, texture transcoding, and aliasing are separate experiments. Each needs its own patch and correctness/performance evidence. Do not bundle them with allocator telemetry or cache reclamation.
+If the failed stage is consistently `GPUMEM_ALLOC_ID` for ordinary BO allocations, the sparse-bind cleanup is not the relevant fix; the next step is to investigate heap accounting, the kernel's KGSL allocation limit, and live BO lifetimes. Only add cache reclamation after identifying a specific cache with a safe lifetime contract.
 
 ## Acceptance criteria
 
-- Android/Turnip build succeeds against the pinned Mesa commit with no fuzzy or silently skipped patches.
-- Identical replay baseline shows lower peak driver-owned allocation or a successful recovery from a previously failing allocation.
-- No regression in p95/p99 frame time beyond run-to-run noise.
-- No validation errors, rendering corruption, GPU hangs, or use-after-free.
-- OOM telemetry differentiates the allocation stage and any retry outcome.
-- Publish a build only after CI passes; device performance and visual correctness remain unverified until tested on the Snapdragon 865.
+- Patch applies cleanly to the pinned Mesa SHA; no fuzzy or silently skipped patches.
+- Android/Turnip build succeeds against that exact SHA.
+- The error log includes allocation stage and requested size.
+- Identical replay demonstrates either lower peak driver-owned allocation or recovery from a previously failing allocation.
+- No validation errors, rendering corruption, GPU hangs, use-after-free, or p95/p99 regression beyond run-to-run noise.
 
 ## Current status
 
-- Branch and plan committed.
-- Perf workflow now offers the existing 256 KiB pipeline profile for controlled comparison.
-- No driver source patch, build result, or performance claim is included yet. The next code change must be based on the exact Mesa source revision and a fail-closed patch check; device results remain unverified until tested on the Snapdragon 865.
+- Branch and source-audit plan committed.
+- Exact upstream Mesa source SHA identified and pinned for the new memory-fix profile.
+- KGSL failure-size diagnostics and sparse-bind BO cleanup patch added.
+- Build and patch-application checks have **not yet run** in this environment. No performance or device-correctness claim is made until CI and Snapdragon 865 testing complete.
