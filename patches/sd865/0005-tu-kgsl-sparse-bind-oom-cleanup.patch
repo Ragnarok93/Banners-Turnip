@@ -1,0 +1,60 @@
+From 4e0d4a16bfe4c9e6b3ad1f7f9a63d2b3b42d2a01 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Fri, 16 Oct 2026 00:00:00 +0000
+Subject: [PATCH] tu/kgsl: release BO when sparse bind allocation fails
+
+On KGSL, kgsl_bo_init() allocates a BO before attempting a lazy sparse-VMA
+bind. If IOCTL_KGSL_GPUMEM_BIND_RANGES fails, the function currently
+returns the error without freeing the newly allocated BO. Repeated failed
+binds can therefore retain KGSL allocations and worsen memory pressure.
+
+Emit the BO allocation RMV event once the kernel allocation is established,
+before mapping, so failure cleanup has a matching destroy event. On sparse
+bind failure, release the unbound BO through kgsl_bo_finish(). Keep the
+replayable mapping path unchanged because kgsl_bo_user_map() already cleans
+up its BO on failure.
+
+This patch is intentionally limited to the sparse-bind failure unwind. It
+does not add retries or reclaim live allocations.
+
+---
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
+index 000000000000..000000000000 100644
+--- a/src/freedreno/vulkan/tu_knl_kgsl.cc
++++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
+@@ -369,6 +369,8 @@ kgsl_bo_init(struct tu_device *dev,
+       .base = base,
+    };
+
+    tu_dump_bo_init(dev, bo);
+
++   /* The kernel BO exists now, including on a later mapping failure. */
++   TU_RMV(bo_allocate, dev, bo);
+    VkResult result = VK_SUCCESS;
+
+    if (lazy_vma) {
+       result = kgsl_sparse_vma_map(dev, lazy_vma, bo, 0);
++      if (result != VK_SUCCESS) {
++         kgsl_bo_finish(dev, bo);
++         return result;
++      }
+    } else if (flags & TU_BO_ALLOC_REPLAYABLE) {
+       result = kgsl_bo_user_map(dev, bo, client_iova);
++      if (result != VK_SUCCESS)
++         return result; /* kgsl_bo_user_map() already frees the BO on failure. */
+    }
+
+-   if (result != VK_SUCCESS)
+-      return result;
+-
+    *out_bo = bo;
+
+-   TU_RMV(bo_allocate, dev, bo);
+    if (flags & TU_BO_ALLOC_INTERNAL_RESOURCE) {
+       TU_RMV(internal_resource_create, dev, bo);
+       TU_RMV(resource_name, dev, bo, name);
+-- 
+2.47.3
