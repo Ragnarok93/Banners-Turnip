@@ -1,0 +1,63 @@
+name: Build SD865 memory-audit driver
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/sd865-memory-pressure-20261016
+    paths:
+      - "build_turnip_perf.sh"
+      - "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch"
+      - ".github/workflows/turnip_memory_audit_build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          pip3 install --break-system-packages meson mako
+
+      - name: Build pinned SD865 memory-audit driver
+        env:
+          PERF_PROFILE: sd865-memory-audit
+          BUILD_VERSION: ci
+        run: |
+          chmod +x build_turnip_perf.sh
+          bash -n build_turnip_perf.sh
+          ./build_turnip_perf.sh
+
+      - name: Verify packaged driver and manifest
+        run: |
+          test -s turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.zip
+          test -s turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.manifest.json
+          unzip -l turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.zip
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.manifest.json")
+          m = json.loads(p.read_text())
+          assert m["profile"] == "sd865-memory-audit", m
+          assert m["memoryAuditPatchApplied"] is True, m
+          assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
+          assert "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" in m["appliedPatches"], m
+          print("Verified pinned Mesa SHA, applied memory patch, manifest, and archive.")
+          PY
+
+      - name: Upload diagnostic build
+        uses: actions/upload-artifact@v4
+        with:
+          name: sd865-memory-audit-driver
+          path: |
+            turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.zip
+            turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.manifest.json
+          if-no-files-found: error
