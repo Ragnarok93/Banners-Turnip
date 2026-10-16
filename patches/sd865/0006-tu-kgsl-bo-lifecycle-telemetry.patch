@@ -12,8 +12,8 @@ The events let the capture reviewer reconstruct large live BOs and identify
 whether memory remains live across repeated allocation failures.
 
 ---
- src/freedreno/vulkan/tu_knl_kgsl.cc | 10 ++++++++++
- 1 file changed, 10 insertions(+)
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
@@ -45,3 +45,7 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
 +
     tu_debug_bos_del(dev, bo);
     tu_dump_bo_del(dev, bo);
+@@ -1996,1 +1996,3 @@
+    device->heap.size = tu_get_system_heap_size(device);
++   mesa_logw("TU_KGSL_MEM event=heap heap_size=%llu va_size=%llu",
++             (unsigned long long)device->heap.size, (unsigned long long)device->va_size);
