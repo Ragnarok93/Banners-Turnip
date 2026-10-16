@@ -247,20 +247,35 @@ PY
 	fi
 
 	if [ "$ff7r_budget" = "1" ]; then
-		# Guarded semantic rewrite: only alter the pinned upstream 90% policy.
+		# Rewrite only the heap_available assignment inside tu_get_budget_memory.
+		# Accept equivalent upstream formatting, but fail closed on semantic drift.
 		python3 - <<'PY'
 import re
 from pathlib import Path
 p = Path("src/freedreno/vulkan/tu_device.cc")
 s = p.read_text()
-target = "sys_available * 3 / 4"
-if target in s:
+start = s.find("tu_get_budget_memory(")
+if start < 0:
+    raise SystemExit("tu_get_budget_memory not found; source unchanged")
+end = s.find("\\n}", start)
+if end < 0:
+    raise SystemExit("tu_get_budget_memory body end not found; source unchanged")
+body = s[start:end]
+if "sys_available * 3 / 4" in body:
     raise SystemExit("FF7R conservative budget change already present; refusing duplicate application")
-pattern = re.compile(r"sys_available\s*\*\s*9\s*/\s*10")
-s2, n = pattern.subn(target, s)
-if n != 1:
-    raise SystemExit(f"Expected exactly one upstream 90% budget expression, found {n}; source unchanged")
-p.write_text(s2)
+pattern = re.compile(r"(uint64_t\\s+heap_available\\s*=\\s*)([^;]+)(;)")
+matches = list(pattern.finditer(body))
+if len(matches) != 1:
+    raise SystemExit(f"Expected one heap_available assignment in budget function, found {len(matches)}; source unchanged")
+rhs = matches[0].group(2).replace(" ", "")
+is_ninety_percent = (
+    "sys_available" in rhs and
+    (("9/10" in rhs) or ("90/100" in rhs) or ("0.9" in rhs))
+)
+if not is_ninety_percent:
+    raise SystemExit(f"Budget expression is not a recognized 90% policy ({rhs}); source unchanged")
+body2 = pattern.sub(lambda m: m.group(1) + "sys_available * 3 / 4" + m.group(3), body, count=1)
+p.write_text(s[:start] + body2 + s[end:])
 print("Applied guarded FF7R 75% available-memory budget change.")
 PY
 		grep -Fq "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
