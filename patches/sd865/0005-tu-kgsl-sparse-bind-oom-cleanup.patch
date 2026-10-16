@@ -95,7 +95,7 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
 +   get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE, &device->va_size,
 +                 sizeof(device->va_size));
     device->heap.size = tu_get_system_heap_size(device);
-@@ -1996,1 +1998,5 @@
+@@ -1996,2 +1998,6 @@
     device->heap.flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
  
 +   mesa_logi("KGSL memory heap: budget=%llu bytes, GPU VA=%llu bytes",
