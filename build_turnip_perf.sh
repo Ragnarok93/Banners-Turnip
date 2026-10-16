@@ -189,6 +189,11 @@ build_lib_for_android(){
 		git apply "$patch"
 		grep -q "kgsl_bo_finish(dev, bo);" src/freedreno/vulkan/tu_knl_kgsl.cc
 		grep -q "The kernel BO exists now, including on a later mapping failure." src/freedreno/vulkan/tu_knl_kgsl.cc
+		telemetry_patch=../../patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch
+		git apply --check "$telemetry_patch"
+		git apply "$telemetry_patch"
+		grep -q "TU_KGSL_MEM event=alloc" src/freedreno/vulkan/tu_knl_kgsl.cc
+		grep -q "TU_KGSL_MEM event=free" src/freedreno/vulkan/tu_knl_kgsl.cc
 	fi
 
 	if [ "$program_reference" = "1" ]; then
@@ -319,6 +324,7 @@ EOF
 	PIPELINE_256_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0004-tu-a650-pipeline-suballoc-256k.patch" | cut -d ' ' -f 1)
 	RENDER_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0003-tu-a650-sysmem-screen.patch" | cut -d ' ' -f 1)
 	MEMORY_AUDIT_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" | cut -d ' ' -f 1)
+	MEMORY_TELEMETRY_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" | cut -d ' ' -f 1)
 	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
 	# Record only patches actually applied to this profile; source hashes below are
 	# retained for reproducibility, but are not a substitute for this applied list.
@@ -356,6 +362,8 @@ EOF
   "programReference": ${program_reference},
   "memoryAuditPatchApplied": ${memory_audit},
   "memoryAuditPatchSha256": "${MEMORY_AUDIT_PATCH_SHA}",
+  "memoryTelemetryPatchApplied": ${memory_audit},
+  "memoryTelemetryPatchSha256": "${MEMORY_TELEMETRY_PATCH_SHA}",
   "pipelineSuballocA650KiB": ${pipeline_a650_kib},
   "pipelineSuballoc256kPatchApplied": ${pipeline_256k},
   "pipelineSuballoc256kPatchSha256": "${PIPELINE_256_PATCH_SHA}",
