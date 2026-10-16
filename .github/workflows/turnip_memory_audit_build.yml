@@ -52,12 +52,12 @@ jobs:
           assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
           assert "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" in m["appliedPatches"], m
           assert "patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" in m["appliedPatches"], m
+          memory_patch = Path("patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch").read_text()
           telemetry_patch = Path("patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch").read_text()
-          assert "TU_KGSL_MEM event=heap" in telemetry_patch and "mesa_logw(" in telemetry_patch, "Heap/VA report must use warning-level logs"
-          assert "TU_KGSL_MEM event=alloc" in telemetry_patch and "TU_KGSL_MEM event=free" in telemetry_patch
+          assert "TU_KGSL_MEM event=heap" in memory_patch and "mesa_logw(" in memory_patch, "Heap/VA report must use warning-level logs"
+          assert all(f"TU_KGSL_MEM event={event}" in telemetry_patch for event in ("alloc", "import", "free"))
           assert m["memoryTelemetryPatchApplied"] in (True, 1), m
-          patch = Path("patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch").read_text()
-          assert "mesa_logw(" in patch and "mesa_logi(" not in patch, "Telemetry must use warning-level logs retained by GameNative captures"
+          assert "mesa_logw(" in telemetry_patch and "mesa_logi(" not in telemetry_patch, "Telemetry must use warning-level logs retained by GameNative captures"
           print("Verified pinned Mesa SHA, warning-level heap/VA and BO telemetry, manifest, and archive.")
           PY
 
