@@ -333,6 +333,8 @@ EOF
 	if [ "$memory_audit" = "1" ]; then
 		APPLIED_PATCHES_JSON+="\"patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch\""
 		patch_sep=','
+		APPLIED_PATCHES_JSON+="\"patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch\""
+		patch_sep=','
 	fi
 	if [ "$program_reference" = "1" ]; then
 		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0001-tu-reference-bound-program-state.patch\""
