@@ -17,6 +17,7 @@ pipeline_512k=0
 pipeline_256k=0
 memory_audit=0
 ff7r_budget=0
+ff7r_pipeline=0
 pipeline_a650_kib=128
 sysmem_screen=0
 render_mode_a650="auto"
@@ -58,7 +59,7 @@ case "$perf_profile" in
 	sd865-ff7r-budget75-512k)
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="FF7R SD865 experimental: 512 KiB pipeline suballocation with conservative 75% available-memory budget reporting"
-		pipeline_512k=1
+		ff7r_pipeline=1
 		pipeline_a650_kib=512
 		ff7r_budget=1
 		mesa_commit="dc671cbf0f76194c72b621205b6cc84e1c914fad"
@@ -225,6 +226,13 @@ build_lib_for_android(){
 		git apply ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
 	fi
 
+	if [ "$ff7r_pipeline" = "1" ]; then
+		ff7r_pipeline_patch=../../patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch
+		git apply --check "$ff7r_pipeline_patch"
+		git apply "$ff7r_pipeline_patch"
+		grep -Fq "(fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024" src/freedreno/vulkan/tu_device.cc
+	fi
+
 	if [ "$ff7r_budget" = "1" ]; then
 		budget_patch=../../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch
 		git apply --check "$budget_patch"
@@ -346,6 +354,7 @@ EOF
 	MEMORY_AUDIT_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" | cut -d ' ' -f 1)
 	MEMORY_TELEMETRY_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" | cut -d ' ' -f 1)
 	FF7R_BUDGET_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch" | cut -d ' ' -f 1)
+	FF7R_PIPELINE_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch" | cut -d ' ' -f 1)
 	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
 	# Record only patches actually applied to this profile; source hashes below are
 	# retained for reproducibility, but are not a substitute for this applied list.
@@ -367,6 +376,10 @@ EOF
 	fi
 	if [ "$pipeline_512k" = "1" ]; then
 		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch\""
+		patch_sep=','
+	fi
+	if [ "$ff7r_pipeline" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch\""
 		patch_sep=','
 	fi
 	if [ "$sysmem_screen" = "1" ]; then
@@ -398,6 +411,8 @@ EOF
   "pipelineSuballoc256kPatchSha256": "${PIPELINE_256_PATCH_SHA}",
   "pipelineSuballocPatchApplied": ${pipeline_512k},
   "pipelineSuballocPatchSha256": "${PIPELINE_PATCH_SHA}",
+  "ff7rPipelinePatchApplied": ${ff7r_pipeline},
+  "ff7rPipelinePatchSha256": "${FF7R_PIPELINE_PATCH_SHA}",
   "programReferencePatchSha256": "${PATCH_SHA}",
   "driverSha256": "${DRIVER_SHA}",
   "androidApi": ${sdkver},
