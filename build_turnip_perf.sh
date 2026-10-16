@@ -255,7 +255,7 @@ import re
 from pathlib import Path
 p = Path("src/freedreno/vulkan/tu_device.cc")
 s = p.read_text()
-pattern = re.compile(r"(\\bheap_available\\s*=\\s*)([^;]+)(;)")
+pattern = re.compile(r"(\bheap_available\s*=\s*)([^;]+)(;)")
 matches = list(pattern.finditer(s))
 candidates = [m for m in matches if "sys_available" in m.group(2)]
 if len(candidates) != 1:
@@ -265,7 +265,7 @@ m = candidates[0]
 rhs = m.group(2)
 if "3 / 4" in rhs:
     raise SystemExit("FF7R 75% memory budget change already present; refusing duplicate application")
-if not re.search(r"(?:9\\s*/\\s*10|90\\s*/\\s*100|/\\s*10\\s*\\*\\s*9)", rhs):
+if not re.search(r"(?:9\s*/\s*10|90\s*/\s*100|/\s*10\s*\*\s*9)", rhs):
     raise SystemExit(f"Unrecognized upstream heap_available expression; refusing rewrite: {rhs.strip()}")
 s = s[:m.start(2)] + "sys_available * 3 / 4" + s[m.end(2):]
 p.write_text(s)
