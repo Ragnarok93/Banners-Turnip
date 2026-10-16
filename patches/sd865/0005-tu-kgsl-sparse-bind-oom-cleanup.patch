@@ -30,8 +30,8 @@ diagnostics, and the sparse-bind error unwind. It does not add retries or
 reclaim live allocations.
 
 ---
- src/freedreno/vulkan/tu_knl_kgsl.cc | 30 ++++++++++++++++++++----------
- 1 file changed, 20 insertions(+), 10 deletions(-)
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 28 ++++++++++++++++++++--------
+ 1 file changed, 19 insertions(+), 9 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
@@ -91,26 +91,14 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
     if (flags & TU_BO_ALLOC_INTERNAL_RESOURCE) {
        TU_RMV(internal_resource_create, dev, bo);
        TU_RMV(resource_name, dev, bo, name);
-@@ -1990,8 +1990,13 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
-    device->sync_types[0] = &vk_kgsl_sync_type;
-    device->sync_types[1] = &device->timeline_type.sync;
-    device->sync_types[2] = NULL;
- 
+@@ -1994,1 +1994,3 @@
 +   get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE, &device->va_size,
 +                 sizeof(device->va_size));
     device->heap.size = tu_get_system_heap_size(device);
-    device->heap.used = 0u;
+@@ -1996,1 +1998,5 @@
     device->heap.flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
  
 +   mesa_logi("KGSL memory heap: budget=%llu bytes, GPU VA=%llu bytes",
 +             (unsigned long long)device->heap.size,
 +             (unsigned long long)device->va_size);
-@@ -2008,6 +2010,4 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
-    device->has_sparse = kgsl_is_virtual_bo_supported(fd);
-    device->has_sparse_prr = device->has_sparse;
-    device->has_lazy_bos = device->has_sparse;
--   get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE, &device->va_size,
--                 sizeof(device->va_size));
-    /* We don't actually use the VMA, but set a fake offset so that it doesn't
--- 
-2.47.3
++
