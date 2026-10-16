@@ -26,7 +26,7 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
     VkResult result = VK_SUCCESS;
  
     if (lazy_vma) {
-@@ -448,6 +451,8 @@ kgsl_bo_init_dmabuf(struct tu_device *dev,
+@@ -448,5 +451,7 @@ kgsl_bo_init_dmabuf(struct tu_device *dev,
  
     tu_dump_bo_init(dev, bo);
 +   mesa_logi("TU_KGSL_MEM event=import id=%u size=%llu iova=0x%llx",
@@ -34,7 +34,7 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
  
     *out_bo = bo;
  
-@@ -496,6 +501,9 @@ kgsl_bo_finish(struct tu_device *dev, struct tu_bo *bo)
+@@ -496,5 +501,8 @@ kgsl_bo_finish(struct tu_device *dev, struct tu_bo *bo)
     if (!p_atomic_dec_zero(&bo->refcnt))
        return;
  
