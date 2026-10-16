@@ -247,35 +247,50 @@ PY
 	fi
 
 	if [ "$ff7r_budget" = "1" ]; then
-		# Rewrite only the heap_available assignment inside tu_get_budget_memory.
-		# Accept equivalent upstream formatting, but fail closed on semantic drift.
+		# Locate the actual function definition and brace-match its body; don't assume indentation.
 		python3 - <<'PY'
 import re
 from pathlib import Path
+
 p = Path("src/freedreno/vulkan/tu_device.cc")
 s = p.read_text()
-start = s.find("tu_get_budget_memory(")
-if start < 0:
-    raise SystemExit("tu_get_budget_memory not found; source unchanged")
-end = s.find("\\n}", start)
-if end < 0:
-    raise SystemExit("tu_get_budget_memory body end not found; source unchanged")
-body = s[start:end]
+signature = re.search(r"\btu_get_budget_memory\s*\([^;]*?\)\s*\{", s, re.S)
+if not signature:
+    raise SystemExit("tu_get_budget_memory definition not found; source unchanged")
+
+open_brace = s.find("{", signature.start(), signature.end())
+depth = 0
+close_brace = None
+for i in range(open_brace, len(s)):
+    if s[i] == "{":
+        depth += 1
+    elif s[i] == "}":
+        depth -= 1
+        if depth == 0:
+            close_brace = i
+            break
+if close_brace is None:
+    raise SystemExit("tu_get_budget_memory closing brace not found; source unchanged")
+
+body = s[signature.start():close_brace + 1]
 if "sys_available * 3 / 4" in body:
     raise SystemExit("FF7R conservative budget change already present; refusing duplicate application")
-pattern = re.compile(r"(uint64_t\\s+heap_available\\s*=\\s*)([^;]+)(;)")
+
+pattern = re.compile(r"(uint64_t\s+heap_available\s*=\s*)([^;]+)(;)")
 matches = list(pattern.finditer(body))
 if len(matches) != 1:
     raise SystemExit(f"Expected one heap_available assignment in budget function, found {len(matches)}; source unchanged")
-rhs = matches[0].group(2).replace(" ", "")
+
+rhs = re.sub(r"\s+", "", matches[0].group(2))
 is_ninety_percent = (
     "sys_available" in rhs and
     (("9/10" in rhs) or ("90/100" in rhs) or ("0.9" in rhs))
 )
 if not is_ninety_percent:
     raise SystemExit(f"Budget expression is not a recognized 90% policy ({rhs}); source unchanged")
+
 body2 = pattern.sub(lambda m: m.group(1) + "sys_available * 3 / 4" + m.group(3), body, count=1)
-p.write_text(s[:start] + body2 + s[end:])
+p.write_text(s[:signature.start()] + body2 + s[close_brace + 1:])
 print("Applied guarded FF7R 75% available-memory budget change.")
 PY
 		grep -Fq "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
