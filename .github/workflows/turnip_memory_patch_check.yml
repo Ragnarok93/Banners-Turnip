@@ -40,6 +40,7 @@ jobs:
           grep -q "The kernel BO exists now, including on a later mapping failure." src/freedreno/vulkan/tu_knl_kgsl.cc
           grep -q "GPUMEM_ALLOC_ID failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
           grep -q "GPUMEM_BIND_RANGES failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
+          grep -q "KGSL memory heap: budget=%llu bytes, GPU VA=%llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
           python3 - <<'PY'
           from pathlib import Path
           source = Path("src/freedreno/vulkan/tu_knl_kgsl.cc").read_text()
