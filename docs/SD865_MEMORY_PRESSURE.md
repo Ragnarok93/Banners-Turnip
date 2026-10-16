@@ -26,7 +26,7 @@ The dma-buf FD leak is already fixed upstream in the pinned tree. That leak affe
 2. Adds the requested byte count to KGSL backing BO allocation, dma-heap allocation, and sparse-bind failure messages. This helps identify which stage failed and how much memory was requested.
 3. Fixes a cleanup gap in `kgsl_bo_init()`: after the kernel BO is allocated, a failed `IOCTL_KGSL_GPUMEM_BIND_RANGES` previously returned an error without freeing that BO. The patch frees it on this failure path and moves the BO-allocation RMV event before mapping so failure cleanup has a matching destroy event. The replayable mapping path remains delegated to `kgsl_bo_user_map()`, which already cleans up its own failures.
 
-4. The memory-audit profile applies `0006-tu-kgsl-bo-lifecycle-telemetry.patch`, emitting `TU_KGSL_MEM event=alloc/import/free` records with BO handle, size, and GPU address. This is diagnostic-only and deliberately excluded from the pipeline performance profiles. A parser can replay these events to estimate live driver BO bytes over time; imported buffers should be analyzed separately from native allocations to avoid double-counting shared backing memory.
+4. The memory-audit profile applies `0006-tu-kgsl-bo-lifecycle-telemetry.patch`, emitting `TU_KGSL_MEM event=alloc/import/free` records with BO handle, size, and GPU address. These use Mesa warning-level logging rather than info-level logging because info messages may be filtered from Android/GameNative captures by the active log threshold. This is diagnostic-only and deliberately excluded from the pipeline performance profiles. A parser can replay these events to estimate live driver BO bytes over time; imported buffers should be analyzed separately from native allocations to avoid double-counting shared backing memory.
 
 This combines accurate heap-budget reporting, a failure-path leak fix, and event-driven error diagnostics; it is not a general cache-reclamation mechanism. If KGSL reports a small VA size, the heap cap may explain why applications attempt allocations beyond the addressable range. If it reports a much larger range, the heap-order fix will not explain the 3.4–3.7 GiB failures. The startup heap/VA line and captured failure stage will decide which path matters.
 
@@ -70,7 +70,7 @@ All attempts returned `VK_ERROR_OUT_OF_DEVICE_MEMORY`. The reported DXVK budget 
 
 The OOM-reclaim records report zero empty chunks and zero bytes reclaimed in the immediate reclaim pass. The lifetime counters show chunks previously reclaimed, but not reusable empty chunks at the failure point. This makes DXVK's current empty-pool reclamation an unlikely recovery path for these exact attempts. The capture still reports `sparseBinding = 0`, so the sparse-bind BO cleanup does not explain these events.
 
-Important: the capture contains no `TU_KGSL_MEM event=alloc/import/free` messages. It therefore does not verify that the new lifecycle-telemetry build was installed; use the manifest in the build artifact to confirm the driver version before the next capture. The `frame-times.csv` currently remains header-only.
+Important: the capture contains no `TU_KGSL_MEM event=alloc/import/free` messages. The initial implementation used info-level logging, which may be filtered by the default Mesa log threshold; the patch now uses warning-level logging and CI checks this severity. The next capture must still verify the events appear, and the artifact manifest should be used to confirm the driver version. The `frame-times.csv` currently remains header-only.
 
 ## Current status
 
