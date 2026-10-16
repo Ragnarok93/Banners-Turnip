@@ -30,21 +30,12 @@ diagnostics, and the sparse-bind error unwind. It does not add retries or
 reclaim live allocations.
 
 ---
- src/freedreno/vulkan/tu_knl_kgsl.cc | 32 +++++++++++++++++++++-----------
- 1 file changed, 21 insertions(+), 11 deletions(-)
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 30 ++++++++++++++++++++----------
+ 1 file changed, 20 insertions(+), 10 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
 +++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
-@@ -90,6 +90,7 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
-    if (ret) {
-       return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
--                       "DMA_HEAP_IOCTL_ALLOC failed (%s)", strerror(errno));
-+                       "DMA_HEAP_IOCTL_ALLOC failed for %llu bytes (%s)",
-+                       (unsigned long long)size, strerror(errno));
-    }
- 
-    return tu_bo_init_dmabuf(dev, out_bo, -1, align, TU_BO_ALLOC_NO_FLAGS, alloc.fd);
 @@ -247,8 +248,9 @@ kgsl_sparse_vma_map(struct tu_device *dev,
     ret = safe_ioctl(dev->physical_device->local_fd,
                      IOCTL_KGSL_GPUMEM_BIND_RANGES, &req);
