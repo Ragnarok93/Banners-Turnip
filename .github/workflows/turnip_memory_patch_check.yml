@@ -47,4 +47,10 @@ jobs:
           va_query = source.index("get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE")
           heap_size = source.index("device->heap.size = tu_get_system_heap_size(device);")
           assert va_query < heap_size, "KGSL VA-size query must precede heap-size calculation"
+          dump_init = source.index("tu_dump_bo_init(dev, bo);")
+          alloc_event = source.index("TU_RMV(bo_allocate, dev, bo);", dump_init)
+          sparse_bind = source.index("result = kgsl_sparse_vma_map(dev, lazy_vma, bo, 0);")
+          sparse_cleanup = source.index("kgsl_bo_finish(dev, bo);", sparse_bind)
+          replay_map = source.index("result = kgsl_bo_user_map(dev, bo, client_iova);", sparse_bind)
+          assert alloc_event < sparse_bind < sparse_cleanup < replay_map, "sparse-bind failure cleanup/event ordering changed"
           PY
