@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Fri, 16 Oct 2026 00:00:00 +0000
+Subject: [PATCH] tu: test conservative memory budget for FF7R on SD865
+
+The current Turnip memory-budget query reports up to 90% of available
+system memory (bounded by the advertised heap and GPU VA size). In the
+captured FF7R OOM runs, large 128 MiB and 256 MiB requests failed while
+DXVK's reported budget was near its current allocation total, and its
+empty-pool reclaim pass reclaimed zero bytes.
+
+For this isolated FF7R profile, report 75% of available system memory
+instead. This is an experiment to make budget-aware clients react earlier
+to unified-memory pressure; it does not cap real allocations, free memory,
+or guarantee recovery. Keep the upstream 90% policy unchanged in all other
+profiles and compare against the existing 512 KiB pipeline profile.
+
+---
+ src/freedreno/vulkan/tu_device.cc | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -1800,9 +1800,10 @@ tu_get_budget_memory(struct tu_physical_device *physical_device)
+    /*
+-    * Let's not incite the app to starve the system: report at most 90% of
++    * FF7R SD865 experiment: leave more headroom under unified-memory pressure.
++    * The upstream default remains 90% in all non-experimental profiles.
+     * available system memory.
+     */
+-   uint64_t heap_available = sys_available * 9 / 10;
++   uint64_t heap_available = sys_available * 3 / 4;
+    return MIN2(heap_size, heap_used + heap_available);
