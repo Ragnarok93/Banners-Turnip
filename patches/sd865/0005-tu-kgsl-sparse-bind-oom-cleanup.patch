@@ -36,16 +36,16 @@ reclaim live allocations.
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
 +++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
-@@ -90,5 +90,6 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
+@@ -90,6 +90,7 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
     if (ret) {
        return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
 -                       "DMA_HEAP_IOCTL_ALLOC failed (%s)", strerror(errno));
 +                       "DMA_HEAP_IOCTL_ALLOC failed for %llu bytes (%s)",
 +                       (unsigned long long)size, strerror(errno));
     }
-
+ 
     return tu_bo_init_dmabuf(dev, out_bo, -1, align, TU_BO_ALLOC_NO_FLAGS, alloc.fd);
-@@ -247,7 +248,8 @@ kgsl_sparse_vma_map(struct tu_device *dev,
+@@ -247,8 +248,9 @@ kgsl_sparse_vma_map(struct tu_device *dev,
     ret = safe_ioctl(dev->physical_device->local_fd,
                      IOCTL_KGSL_GPUMEM_BIND_RANGES, &req);
     if (ret) {
@@ -55,9 +55,9 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
 +                       "GPUMEM_BIND_RANGES failed for %llu bytes (%s)",
 +                       (unsigned long long)range.length, strerror(errno));
     }
-
+ 
     return VK_SUCCESS;
-@@ -339,7 +341,8 @@ kgsl_bo_init(struct tu_device *dev,
+@@ -339,8 +341,9 @@ kgsl_bo_init(struct tu_device *dev,
     ret = safe_ioctl(dev->physical_device->local_fd,
                      IOCTL_KGSL_GPUMEM_ALLOC_ID, &req);
     if (ret) {
@@ -67,18 +67,18 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
 +                       "GPUMEM_ALLOC_ID failed for %llu bytes (%s)",
 +                       (unsigned long long)size, strerror(errno));
     }
-
+ 
     struct tu_bo* bo = tu_device_lookup_bo(dev, req.id);
-@@ -369,17 +372,21 @@ kgsl_bo_init(struct tu_device *dev,
+@@ -369,22 +372,26 @@ kgsl_bo_init(struct tu_device *dev,
        .base = base,
     };
-
+ 
     tu_dump_bo_init(dev, bo);
-
+ 
 +   /* The kernel BO exists now, including on a later mapping failure. */
 +   TU_RMV(bo_allocate, dev, bo);
     VkResult result = VK_SUCCESS;
-
+ 
     if (lazy_vma) {
        result = kgsl_sparse_vma_map(dev, lazy_vma, bo, 0);
 +      if (result != VK_SUCCESS) {
@@ -90,27 +90,27 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
 +      if (result != VK_SUCCESS)
 +         return result; /* kgsl_bo_user_map() already frees the BO on failure. */
     }
-
+ 
 -   if (result != VK_SUCCESS)
 -      return result;
 -
     *out_bo = bo;
-
+ 
 -   TU_RMV(bo_allocate, dev, bo);
     if (flags & TU_BO_ALLOC_INTERNAL_RESOURCE) {
        TU_RMV(internal_resource_create, dev, bo);
        TU_RMV(resource_name, dev, bo, name);
-@@ -1990,6 +1990,11 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
+@@ -1990,8 +1990,13 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
     device->sync_types[0] = &vk_kgsl_sync_type;
     device->sync_types[1] = &device->timeline_type.sync;
     device->sync_types[2] = NULL;
-
+ 
 +   get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE, &device->va_size,
 +                 sizeof(device->va_size));
     device->heap.size = tu_get_system_heap_size(device);
     device->heap.used = 0u;
     device->heap.flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
-
+ 
 +   mesa_logi("KGSL memory heap: budget=%llu bytes, GPU VA=%llu bytes",
 +             (unsigned long long)device->heap.size,
 +             (unsigned long long)device->va_size);
