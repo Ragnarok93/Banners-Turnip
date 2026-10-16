@@ -10,6 +10,7 @@ on:
           - generic
           - sd865-cortex-a77
           - sd865-program-reference
+          - sd865-pipeline-256k
           - sd865-pipeline-512k
           - sd865-sysmem-screen
           - sd865-combined-512k
@@ -179,32 +180,33 @@ jobs:
             printf "| | |\n"
             printf "| :--- | :--- |\n"
             printf "| **Version** | %s |\n"              "${MESA_VERSION}"
-            printf "| **Commit** | [\`%s\`](%s) |\n"    "${GITHASH}" "${MESA_URL}"
+            printf "| **Commit** | [\x60%s\x60](%s) |\n"    "${GITHASH}" "${MESA_URL}"
             printf "| **Commit date** | %s |\n"          "${COMMIT_DATE}"
             printf "| **Commit title** | %s |\n"         "${COMMIT_TITLE}"
             printf "| **Build date** | %s |\n\n"         "${BUILD_DATE}"
             printf '%s\n\n' '---'
             printf "### Build Configuration\n\n"
-            printf "Mesa \`main\` build profile: %s.\n\n" "${PERF_PROFILE}"
+            printf "Mesa \x60main\x60 build profile: %s.\n\n" "${PERF_PROFILE}"
             case "${PERF_PROFILE}" in
               sd865-program-reference) printf "Candidate: borrowed graphics program-state references (lifetime-sensitive; experimental).\n\n" ;;
+              sd865-pipeline-256k) printf "Candidate: 256 KiB A650 pipeline suballocation; comparison profile for the 512 KiB control.\n\n" ;;
               sd865-pipeline-512k) printf "Candidate: 512 KiB A650 pipeline suballocation only; graphics program state remains owned.\n\n" ;;
               sd865-sysmem-screen) printf "Diagnostic control: forced SYSMEM only; not presumed faster.\n\n" ;;
               sd865-combined-512k) printf "Combined candidate: borrowed program state + 512 KiB pipeline suballocation.\n\n" ;;
               sd865-combined-sysmem) printf "Combined diagnostic: borrowed program state + 512 KiB pipeline suballocation + forced SYSMEM.\n\n" ;;
-              sd865-cortex-a77) printf "CPU tuning: \`-mtune=cortex-a77\`; no CPU-specific ISA enabled.\n\n" ;;
+              sd865-cortex-a77) printf "CPU tuning: \x60-mtune=cortex-a77\x60; no CPU-specific ISA enabled.\n\n" ;;
               generic) printf "Generic AArch64 tuning baseline.\n\n" ;;
             esac
-            printf "**Compiler flags:** \`-O3 -fno-plt -flto=thin\`"
+            printf "**Compiler flags:** \x60-O3 -fno-plt -flto=thin\x60"
             if [[ "${PERF_PROFILE}" == "sd865-cortex-a77" ]]; then
-              printf " plus \`-mtune=cortex-a77\` (tuning only; no CPU-specific ISA enabled)"
+              printf " plus \x60-mtune=cortex-a77\x60 (tuning only; no CPU-specific ISA enabled)"
             fi
             printf "\n\n"
-            printf "**Meson:** \`-Db_ndebug=true\` (assertions stripped)\n\n"
+            printf "**Meson:** \x60-Db_ndebug=true\x60 (assertions stripped)\n\n"
             printf "Three inline NDK r29 compatibility fixes applied at build time:\n\n"
-            printf "  - \`buffer_handle_t\` typedef fix (\`native_handle.h\`)\n"
-            printf "  - \`hnd->handle\` void-cast fix (\`u_gralloc_fallback.c\`)\n"
-            printf "  - \`native_buffer->handle\` cast fix (\`vk_android.c\`)\n\n"
+            printf "  - \x60buffer_handle_t\x60 typedef fix (\x60native_handle.h\x60)\n"
+            printf "  - \x60hnd->handle\x60 void-cast fix (\x60u_gralloc_fallback.c\x60)\n"
+            printf "  - \x60native_buffer->handle\x60 cast fix (\x60vk_android.c\x60)\n\n"
             printf '%s\n\n' '---'
             printf "### Adreno GPU Support\n\n"
             printf "| Series | Notes |\n"
