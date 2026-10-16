@@ -1,0 +1,42 @@
+name: Verify SD865 memory patch
+
+on:
+  push:
+    branches:
+      - feature/sd865-memory-pressure-20261016
+    paths:
+      - "build_turnip_perf.sh"
+      - "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch"
+      - ".github/workflows/turnip_memory_patch_check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-patch:
+    runs-on: ubuntu-latest
+    env:
+      MESA_COMMIT: dc671cbf0f76194c72b621205b6cc84e1c914fad
+    steps:
+      - name: Checkout driver repository
+        uses: actions/checkout@v4
+
+      - name: Check build script syntax
+        run: bash -n build_turnip_perf.sh
+
+      - name: Fetch pinned Mesa source
+        run: |
+          git clone --no-checkout --filter=blob:none https://gitlab.freedesktop.org/mesa/mesa.git mesa-source
+          git -C mesa-source fetch --depth=1 origin "$MESA_COMMIT"
+          git -C mesa-source checkout --detach "$MESA_COMMIT"
+          test "$(git -C mesa-source rev-parse HEAD)" = "$MESA_COMMIT"
+
+      - name: Verify patch applies exactly
+        run: |
+          cd mesa-source
+          git apply --check ../patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch
+          git apply ../patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch
+          grep -q "The kernel BO exists now, including on a later mapping failure." src/freedreno/vulkan/tu_knl_kgsl.cc
+          grep -q "GPUMEM_ALLOC_ID failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
+          grep -q "GPUMEM_BIND_RANGES failed for %llu bytes" src/freedreno/vulkan/tu_knl_kgsl.cc
