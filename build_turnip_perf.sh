@@ -227,9 +227,22 @@ build_lib_for_android(){
 	fi
 
 	if [ "$ff7r_pipeline" = "1" ]; then
-		ff7r_pipeline_patch=../../patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch
-		git apply --check "$ff7r_pipeline_patch"
-		git apply "$ff7r_pipeline_patch"
+		# Guarded semantic rewrite avoids brittle hunk context; fail closed on drift.
+		python3 - <<'PY'
+import re
+from pathlib import Path
+p = Path("src/freedreno/vulkan/tu_device.cc")
+s = p.read_text()
+target = "(fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024"
+if target in s:
+    raise SystemExit("FF7R 512 KiB pipeline change already present; refusing duplicate application")
+pattern = re.compile(r"(tu_bo_suballocator_init\s*\(\s*&device->pipeline_suballoc\s*,\s*device\s*,\s*)128\s*\*\s*1024(\s*,)", re.MULTILINE)
+s2, n = pattern.subn(lambda m: m.group(1) + target + m.group(2), s)
+if n != 1:
+    raise SystemExit(f"Expected exactly one pipeline suballocator size site, found {n}; source unchanged")
+p.write_text(s2)
+print("Applied guarded FF7R 512 KiB pipeline suballocation change.")
+PY
 		grep -Fq "(fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024" src/freedreno/vulkan/tu_device.cc
 	fi
 
