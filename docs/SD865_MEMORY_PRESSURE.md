@@ -60,10 +60,21 @@ If the failed stage is consistently `GPUMEM_ALLOC_ID` for ordinary BO allocation
 - Identical replay demonstrates either lower peak driver-owned allocation or recovery from a previously failing allocation.
 - No validation errors, rendering corruption, GPU hangs, use-after-free, or p95/p99 regression beyond run-to-run noise.
 
+## Latest capture findings (2026-10-16)
+
+The uploaded `logs/driver-and-runtime-report.txt` now contains three distinct DXVK allocation failures:
+- 256 MiB at reported DXVK allocated/used totals of approximately 3.56/3.22 GB.
+- 256 MiB at approximately 3.76/3.35 GB.
+- 128 MiB immediately after the second 256 MiB failure.
+All attempts returned `VK_ERROR_OUT_OF_DEVICE_MEMORY`. The reported DXVK budget at these events was about 3.85–3.92 GB, and the driver-reported budget about 3.92–4.10 GB. Those budgets are estimates and do not guarantee that a particular backing allocation can succeed.
+
+The OOM-reclaim records report zero empty chunks and zero bytes reclaimed in the immediate reclaim pass. The lifetime counters show chunks previously reclaimed, but not reusable empty chunks at the failure point. This makes DXVK's current empty-pool reclamation an unlikely recovery path for these exact attempts. The capture still reports `sparseBinding = 0`, so the sparse-bind BO cleanup does not explain these events.
+
+Important: the capture contains no `TU_KGSL_MEM event=alloc/import/free` messages. It therefore does not verify that the new lifecycle-telemetry build was installed; use the manifest in the build artifact to confirm the driver version before the next capture. The `frame-times.csv` currently remains header-only.
+
 ## Current status
 
-- Branch and source-audit plan committed.
-- Exact upstream Mesa source SHA identified and pinned for the new memory-fix profile.
-- KGSL failure-size diagnostics and sparse-bind BO cleanup patch added.
-- The memory-audit CI build passed once for the sparse-bind/heap-order patch; a follow-up build now also verifies that BO lifecycle telemetry is applied and packaged.
-- The uploaded report does not contain an OOM event or usable frame-time CSV, so it cannot identify the root cause. No performance or device-correctness claim is made until the new capture is reviewed on the Snapdragon 865.
+- Exact upstream Mesa SHA pinned; heap-order and sparse-bind cleanup patch retained as narrow fixes.
+- BO lifecycle telemetry patch added for the memory-audit profile only.
+- An initial CI run caught malformed hunk counts in the new telemetry patch. Those counts were corrected, and the build workflow was updated to trigger on telemetry-patch changes. The corrected build is running; do not install or rely on an artifact until that run passes.
+- No device-level fix is claimed yet. The next capture must include `TU_KGSL_MEM` events and the precise KGSL failure stage so the next change can target the actual allocation path.
