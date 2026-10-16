@@ -27,7 +27,6 @@ bind error unwind. It does not add retries or reclaim live allocations.
  1 file changed, 16 insertions(+), 9 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
-index 3e34064c614d..000000000000 100644
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
 +++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
 @@ -90,5 +90,6 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
