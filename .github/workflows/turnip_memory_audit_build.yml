@@ -53,7 +53,9 @@ jobs:
           assert "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" in m["appliedPatches"], m
           assert "patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" in m["appliedPatches"], m
           assert m["memoryTelemetryPatchApplied"] in (True, 1), m
-          print("Verified pinned Mesa SHA, memory fixes, BO lifecycle telemetry, manifest, and archive.")
+          patch = Path("patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch").read_text()
+          assert "mesa_logw(" in patch and "mesa_logi(" not in patch, "Telemetry must use warning-level logs retained by GameNative captures"
+          print("Verified pinned Mesa SHA, memory fixes, warning-level BO telemetry, manifest, and archive.")
           PY
 
       - name: Upload diagnostic build
