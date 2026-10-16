@@ -229,7 +229,7 @@ build_lib_for_android(){
 		budget_patch=../../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch
 		git apply --check "$budget_patch"
 		git apply "$budget_patch"
-		grep -q "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
+		grep -Fq "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
 	fi
 
 	if [ "$sysmem_screen" = "1" ]; then
