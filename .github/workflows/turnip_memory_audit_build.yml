@@ -47,7 +47,7 @@ jobs:
           p = Path("turnip_workdir/mesa-turnip-perf-sd865-memory-audit-main.manifest.json")
           m = json.loads(p.read_text())
           assert m["profile"] == "sd865-memory-audit", m
-          assert m["memoryAuditPatchApplied"] is True, m
+          assert m["memoryAuditPatchApplied"] in (True, 1), m
           assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
           assert "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" in m["appliedPatches"], m
           print("Verified pinned Mesa SHA, applied memory patch, manifest, and archive.")
