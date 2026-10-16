@@ -22,7 +22,7 @@ profiles and compare against the existing 512 KiB pipeline profile.
 diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
 --- a/src/freedreno/vulkan/tu_device.cc
 +++ b/src/freedreno/vulkan/tu_device.cc
-@@ -1800,7 +1800,8 @@ tu_get_budget_memory(struct tu_physical_device *physical_device)
+@@ -1800,6 +1800,7 @@ tu_get_budget_memory(struct tu_physical_device *physical_device)
     /*
 -    * Let's not incite the app to starve the system: report at most 90% of
 +    * FF7R SD865 experiment: leave more headroom under unified-memory pressure.
