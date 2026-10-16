@@ -18,9 +18,7 @@ No other GPU, rendering mode, or program-state behavior is changed.
 diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
 --- a/src/freedreno/vulkan/tu_device.cc
 +++ b/src/freedreno/vulkan/tu_device.cc
-@@ -3057,3 +3057,4 @@
-    tu_bo_suballocator_init(
+@@ -2582,1 +2582,2 @@
 -      &device->pipeline_suballoc, device, 128 * 1024,
 +      &device->pipeline_suballoc, device,
 +      (fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024,
-       static_cast<enum tu_bo_alloc_flags>(TU_BO_ALLOC_GPU_READ_ONLY |
