@@ -247,12 +247,31 @@ PY
 	fi
 
 	if [ "$ff7r_budget" = "1" ]; then
-		# Apply the reviewed, pinned-source patch directly. The patch is guarded
-		# by git apply --check so source drift fails before compilation.
-		budget_patch=../../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch
-		git apply --check "$budget_patch"
-		git apply "$budget_patch"
-		grep -Fq "uint64_t heap_available = sys_available * 3 / 4;" src/freedreno/vulkan/tu_device.cc
+		# Apply this narrowly to the pinned source's heap_available assignment.
+		# The upstream comment/context has drifted, so avoid a context-heavy patch;
+		# fail closed unless exactly one system-memory budget expression is found.
+		python3 - <<'PY'
+import re
+from pathlib import Path
+p = Path("src/freedreno/vulkan/tu_device.cc")
+s = p.read_text()
+pattern = re.compile(r"(\\bheap_available\\s*=\\s*)([^;]+)(;)")
+matches = list(pattern.finditer(s))
+candidates = [m for m in matches if "sys_available" in m.group(2)]
+if len(candidates) != 1:
+    details = [m.group(0).strip() for m in candidates]
+    raise SystemExit(f"Expected exactly one heap_available assignment based on sys_available; found {len(candidates)}: {details}")
+m = candidates[0]
+rhs = m.group(2)
+if "3 / 4" in rhs:
+    raise SystemExit("FF7R 75% memory budget change already present; refusing duplicate application")
+if not re.search(r"(?:9\\s*/\\s*10|90\\s*/\\s*100|/\\s*10\\s*\\*\\s*9)", rhs):
+    raise SystemExit(f"Unrecognized upstream heap_available expression; refusing rewrite: {rhs.strip()}")
+s = s[:m.start(2)] + "sys_available * 3 / 4" + s[m.end(2):]
+p.write_text(s)
+print("Applied guarded FF7R 75% system-memory budget change.")
+PY
+		grep -Fq "heap_available = sys_available * 3 / 4;" src/freedreno/vulkan/tu_device.cc
 	fi
 
 	if [ "$sysmem_screen" = "1" ]; then
