@@ -63,4 +63,4 @@ If the failed stage is consistently `GPUMEM_ALLOC_ID` for ordinary BO allocation
 - Branch and source-audit plan committed.
 - Exact upstream Mesa source SHA identified and pinned for the new memory-fix profile.
 - KGSL failure-size diagnostics and sparse-bind BO cleanup patch added.
-- Build and patch-application checks have **not yet run** in this environment. No performance or device-correctness claim is made until CI and Snapdragon 865 testing complete.
+- A dedicated CI workflow now fetches the pinned Mesa commit and checks patch application, source-ordering invariants, and shell syntax. I have not confirmed a completed run yet. No performance or device-correctness claim is made until CI and Snapdragon 865 testing complete.
