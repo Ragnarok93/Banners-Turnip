@@ -255,8 +255,8 @@ import re
 from pathlib import Path
 p = Path("src/freedreno/vulkan/tu_device.cc")
 s = p.read_text()
-helper = re.compile(r"(tu_get_budget_memory\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?const\\s+float\\s+percent\\s*=\\s*)0\\.9f(\\s*;)", re.MULTILINE)
-legacy = re.compile(r"(\\bheap_available\\s*=\\s*)sys_available\\s*\\*\\s*9\\s*/\\s*10(\\s*;)")
+helper = re.compile(r"(tu_get_budget_memory\s*\([^)]*\)\s*\{[\s\S]*?const\s+float\s+percent\s*=\s*)0\.9f(\s*;)", re.MULTILINE)
+legacy = re.compile(r"(\bheap_available\s*=\s*)sys_available\s*\*\s*9\s*/\s*10(\s*;)")
 hm = list(helper.finditer(s))
 lm = list(legacy.finditer(s))
 if len(hm) == 1 and len(lm) == 0:
