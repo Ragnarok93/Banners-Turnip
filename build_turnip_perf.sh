@@ -16,6 +16,7 @@ program_reference=0
 pipeline_512k=0
 pipeline_256k=0
 memory_audit=0
+ff7r_budget=0
 pipeline_a650_kib=128
 sysmem_screen=0
 render_mode_a650="auto"
@@ -48,6 +49,18 @@ case "$perf_profile" in
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="SD865 A650 memory-pressure fix: release KGSL BOs when lazy sparse binding fails"
 		memory_audit=1
+		mesa_commit="dc671cbf0f76194c72b621205b6cc84e1c914fad"
+		sdkver="29"
+		platform_sdk="$sdkver"
+		min_api="$sdkver"
+		metadata_vulkan="1.3.0"
+		;;
+	sd865-ff7r-budget75-512k)
+		cpu_tune_flags="-mtune=cortex-a77"
+		perf_description="FF7R SD865 experimental: 512 KiB pipeline suballocation with conservative 75% available-memory budget reporting"
+		pipeline_512k=1
+		pipeline_a650_kib=512
+		ff7r_budget=1
 		mesa_commit="dc671cbf0f76194c72b621205b6cc84e1c914fad"
 		sdkver="29"
 		platform_sdk="$sdkver"
@@ -212,6 +225,13 @@ build_lib_for_android(){
 		git apply ../../patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch
 	fi
 
+	if [ "$ff7r_budget" = "1" ]; then
+		budget_patch=../../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch
+		git apply --check "$budget_patch"
+		git apply "$budget_patch"
+		grep -q "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
+	fi
+
 	if [ "$sysmem_screen" = "1" ]; then
 		git apply --check ../../patches/sd865/0003-tu-a650-sysmem-screen.patch
 		git apply ../../patches/sd865/0003-tu-a650-sysmem-screen.patch
@@ -325,6 +345,7 @@ EOF
 	RENDER_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0003-tu-a650-sysmem-screen.patch" | cut -d ' ' -f 1)
 	MEMORY_AUDIT_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" | cut -d ' ' -f 1)
 	MEMORY_TELEMETRY_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" | cut -d ' ' -f 1)
+	FF7R_BUDGET_PATCH_SHA=$(sha256sum "$workdir/../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch" | cut -d ' ' -f 1)
 	BUILDER_SHA=$(git -C "$workdir/.." rev-parse HEAD)
 	# Record only patches actually applied to this profile; source hashes below are
 	# retained for reproducibility, but are not a substitute for this applied list.
@@ -350,6 +371,10 @@ EOF
 	fi
 	if [ "$sysmem_screen" = "1" ]; then
 		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0003-tu-a650-sysmem-screen.patch\""
+		patch_sep=','
+	fi
+	if [ "$ff7r_budget" = "1" ]; then
+		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch\""
 	fi
 	APPLIED_PATCHES_JSON+=']'
 	cat <<EOF >"build-manifest.json"
@@ -366,6 +391,8 @@ EOF
   "memoryAuditPatchSha256": "${MEMORY_AUDIT_PATCH_SHA}",
   "memoryTelemetryPatchApplied": ${memory_audit},
   "memoryTelemetryPatchSha256": "${MEMORY_TELEMETRY_PATCH_SHA}",
+  "ff7rConservativeBudgetPatchApplied": ${ff7r_budget},
+  "ff7rConservativeBudgetPatchSha256": "${FF7R_BUDGET_PATCH_SHA}",
   "pipelineSuballocA650KiB": ${pipeline_a650_kib},
   "pipelineSuballoc256kPatchApplied": ${pipeline_256k},
   "pipelineSuballoc256kPatchSha256": "${PIPELINE_256_PATCH_SHA}",
