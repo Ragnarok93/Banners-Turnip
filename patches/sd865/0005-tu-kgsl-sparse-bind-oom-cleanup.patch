@@ -8,9 +8,10 @@ bind. If IOCTL_KGSL_GPUMEM_BIND_RANGES fails, the function currently
 returns the error without freeing the newly allocated BO. Repeated failed
 binds can therefore retain KGSL allocations and worsen memory pressure.
 
-Include the requested byte size in the GPUMEM_ALLOC_ID and
-GPUMEM_BIND_RANGES failure messages, so OOM captures distinguish a backing
-BO allocation failure from a sparse VA bind failure.
+Include the requested byte size in the GPUMEM_ALLOC_ID,
+GPUMEM_BIND_RANGES, and dma-heap allocation failure messages, so OOM
+captures distinguish a backing BO allocation failure from a sparse VA bind
+failure.
 
 Emit the BO allocation RMV event once the kernel allocation is established,
 before mapping, so failure cleanup has a matching destroy event. On sparse
@@ -26,10 +27,10 @@ bind error unwind. It does not add retries or reclaim live allocations.
  1 file changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
-index 000000000000..000000000000 100644
+index 3e34064c614d..000000000000 100644
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
 +++ b/src/freedreno/vulkan/tu_knl_kgsl.cc
-@@ -98,7 +98,8 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
+@@ -90,7 +90,8 @@ bo_init_new_dmaheap(struct tu_device *dev, struct tu_bo **out_bo, uint64_t size,
     if (ret) {
        return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
 -                       "DMA_HEAP_IOCTL_ALLOC failed (%s)", strerror(errno));
@@ -38,7 +39,7 @@ index 000000000000..000000000000 100644
     }
 
     return tu_bo_init_dmabuf(dev, out_bo, -1, align, TU_BO_ALLOC_NO_FLAGS, alloc.fd);
-@@ -249,7 +250,8 @@ kgsl_sparse_vma_map(struct tu_device *dev,
+@@ -247,8 +248,9 @@ kgsl_sparse_vma_map(struct tu_device *dev,
     ret = safe_ioctl(dev->physical_device->local_fd,
                      IOCTL_KGSL_GPUMEM_BIND_RANGES, &req);
     if (ret) {
@@ -48,13 +49,21 @@ index 000000000000..000000000000 100644
 +                       "GPUMEM_BIND_RANGES failed for %llu bytes (%s)",
 +                       (unsigned long long)range.length, strerror(errno));
     }
-@@
+
+    return VK_SUCCESS;
+@@ -339,8 +341,9 @@ kgsl_bo_init(struct tu_device *dev,
+    ret = safe_ioctl(dev->physical_device->local_fd,
+                     IOCTL_KGSL_GPUMEM_ALLOC_ID, &req);
+    if (ret) {
 -      return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
 -                       "GPUMEM_ALLOC_ID failed (%s)", strerror(errno));
 +      return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
 +                       "GPUMEM_ALLOC_ID failed for %llu bytes (%s)",
 +                       (unsigned long long)size, strerror(errno));
-@@ -369,6 +369,8 @@ kgsl_bo_init(struct tu_device *dev,
+    }
+
+    struct tu_bo* bo = tu_device_lookup_bo(dev, req.id);
+@@ -369,6 +372,8 @@ kgsl_bo_init(struct tu_device *dev,
        .base = base,
     };
 
