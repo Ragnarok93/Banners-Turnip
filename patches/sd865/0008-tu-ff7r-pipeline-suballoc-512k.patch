@@ -18,7 +18,7 @@ No other GPU, rendering mode, or program-state behavior is changed.
 diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
 --- a/src/freedreno/vulkan/tu_device.cc
 +++ b/src/freedreno/vulkan/tu_device.cc
-@@ -3057,4 +3057,5 @@
+@@ -3057,3 +3057,4 @@
     tu_bo_suballocator_init(
 -      &device->pipeline_suballoc, device, 128 * 1024,
 +      &device->pipeline_suballoc, device,
