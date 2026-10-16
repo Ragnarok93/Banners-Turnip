@@ -1,0 +1,9 @@
+format=GameNative driver performance capture v1
+started_at=2026-10-16T01:54:51.093-0500
+ended_at=2026-10-16T01:56:34.709-0500
+duration_ms=103616
+frame_timestamp_count=0
+frame_timestamp_source=GameNative FrameTimeRing; only present while the metrics frame hook is recording
+performance_metrics_file=unavailable
+gpu_hardware_counters=not directly available through the GameNative app API; driver-provided counters are included only if present in logs
+capture_scope=GameNative process logs, LSFG/Vulkan/runtime report, retained frame timestamps, and current metrics JSONL when available
