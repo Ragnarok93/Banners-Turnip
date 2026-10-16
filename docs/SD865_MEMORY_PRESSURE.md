@@ -26,6 +26,8 @@ The dma-buf FD leak is already fixed upstream in the pinned tree. That leak affe
 2. Adds the requested byte count to KGSL backing BO allocation, dma-heap allocation, and sparse-bind failure messages. This helps identify which stage failed and how much memory was requested.
 3. Fixes a cleanup gap in `kgsl_bo_init()`: after the kernel BO is allocated, a failed `IOCTL_KGSL_GPUMEM_BIND_RANGES` previously returned an error without freeing that BO. The patch frees it on this failure path and moves the BO-allocation RMV event before mapping so failure cleanup has a matching destroy event. The replayable mapping path remains delegated to `kgsl_bo_user_map()`, which already cleans up its own failures.
 
+4. The memory-audit profile applies `0006-tu-kgsl-bo-lifecycle-telemetry.patch`, emitting `TU_KGSL_MEM event=alloc/import/free` records with BO handle, size, and GPU address. This is diagnostic-only and deliberately excluded from the pipeline performance profiles. A parser can replay these events to estimate live driver BO bytes over time; imported buffers should be analyzed separately from native allocations to avoid double-counting shared backing memory.
+
 This combines accurate heap-budget reporting, a failure-path leak fix, and event-driven error diagnostics; it is not a general cache-reclamation mechanism. If KGSL reports a small VA size, the heap cap may explain why applications attempt allocations beyond the addressable range. If it reports a much larger range, the heap-order fix will not explain the 3.4–3.7 GiB failures. The startup heap/VA line and captured failure stage will decide which path matters.
 
 ## Scope and safety
@@ -46,7 +48,7 @@ This combines accurate heap-budget reporting, a failure-path leak fix, and event
 
 ## Next measurement step
 
-Build `sd865-memory-audit` from the perf workflow, install it as a separate test build, and repeat the same game/replay, resolution, shader-cache state, and capture window as the control. Capture the new failure-stage/byte-count messages alongside DXVK allocation logs, process RSS/PSS, Android available memory, and frame-time p50/p95/p99. Compare against `sd865-pipeline-512k` and `sd865-pipeline-256k` separately.
+Build `sd865-memory-audit` from the perf workflow, install it as a separate test build, and repeat the same game/replay, resolution, shader-cache state, and capture window as the control. Capture the `TU_KGSL_MEM` lifecycle events and failure-stage/byte-count messages alongside DXVK allocation logs and frame-time measurements. Keep the capture in GameNative itself; redact command-line secrets and account identifiers before uploading. Compare against `sd865-pipeline-512k` and `sd865-pipeline-256k` separately.
 
 If the failed stage is consistently `GPUMEM_ALLOC_ID` for ordinary BO allocations, the sparse-bind cleanup is not the relevant fix; the next step is to investigate heap accounting, the kernel's KGSL allocation limit, and live BO lifetimes. Only add cache reclamation after identifying a specific cache with a safe lifetime contract.
 
@@ -63,4 +65,5 @@ If the failed stage is consistently `GPUMEM_ALLOC_ID` for ordinary BO allocation
 - Branch and source-audit plan committed.
 - Exact upstream Mesa source SHA identified and pinned for the new memory-fix profile.
 - KGSL failure-size diagnostics and sparse-bind BO cleanup patch added.
-- A dedicated CI workflow now fetches the pinned Mesa commit and checks patch application, source-ordering invariants, and shell syntax. I have not confirmed a completed run yet. No performance or device-correctness claim is made until CI and Snapdragon 865 testing complete.
+- The memory-audit CI build passed once for the sparse-bind/heap-order patch; a follow-up build now also verifies that BO lifecycle telemetry is applied and packaged.
+- The uploaded report does not contain an OOM event or usable frame-time CSV, so it cannot identify the root cause. No performance or device-correctness claim is made until the new capture is reviewed on the Snapdragon 865.
