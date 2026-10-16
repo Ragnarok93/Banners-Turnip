@@ -30,8 +30,8 @@ diagnostics, and the sparse-bind error unwind. It does not add retries or
 reclaim live allocations.
 
 ---
- src/freedreno/vulkan/tu_knl_kgsl.cc | 30 ++++++++++++++++++++++++--------
- 1 file changed, 21 insertions(+), 9 deletions(-)
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 28 ++++++++++++++++++++--------
+ 1 file changed, 19 insertions(+), 9 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 --- a/src/freedreno/vulkan/tu_knl_kgsl.cc
@@ -91,9 +91,7 @@ diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_k
     if (flags & TU_BO_ALLOC_INTERNAL_RESOURCE) {
        TU_RMV(internal_resource_create, dev, bo);
        TU_RMV(resource_name, dev, bo, name);
-@@ -1994,1 +1994,5 @@
+@@ -1994,1 +1994,3 @@
 +   get_kgsl_prop(fd, KGSL_PROP_GPU_VA64_SIZE, &device->va_size,
 +                 sizeof(device->va_size));
     device->heap.size = tu_get_system_heap_size(device);
-+   mesa_logw("TU_KGSL_MEM event=heap heap_size=%llu va_size=%llu",
-+             (unsigned long long)device->heap.size, (unsigned long long)device->va_size);
