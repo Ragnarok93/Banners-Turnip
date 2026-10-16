@@ -1,0 +1,70 @@
+name: Build FF7R SD865 budget-aware Turnip candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/ff7r-a650-budget-aware-20261016
+    paths:
+      - "build_turnip_perf.sh"
+      - "patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch"
+      - "patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch"
+      - "docs/FF7R_SD865_BUDGET_EXPERIMENT.md"
+      - ".github/workflows/turnip_ff7r_budget_build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build patchelf unzip flex bison git perl python3-pip glslang-tools curl zip patch ccache
+          pip3 install --break-system-packages meson mako
+
+      - name: Build pinned FF7R candidate
+        env:
+          PERF_PROFILE: sd865-ff7r-budget75-512k
+          BUILD_VERSION: ci
+        run: |
+          chmod +x build_turnip_perf.sh
+          bash -n build_turnip_perf.sh
+          ./build_turnip_perf.sh
+
+      - name: Verify candidate and provenance
+        run: |
+          test -s turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.zip
+          test -s turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.manifest.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.manifest.json")
+          m = json.loads(p.read_text())
+          assert m["profile"] == "sd865-ff7r-budget75-512k", m
+          assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
+          assert m["pipelineSuballocA650KiB"] == 512, m
+          assert m["pipelineSuballocPatchApplied"] is True, m
+          assert m["ff7rConservativeBudgetPatchApplied"] is True, m
+          assert "patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch" in m["appliedPatches"], m
+          assert "patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" in m["appliedPatches"], m
+          assert m["programReference"] is False, m
+          assert m["renderModeA650"] == "auto", m
+          print("Verified pinned Mesa source, 512 KiB control setting, conservative budget patch, and manifest.")
+          PY
+          unzip -l turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.zip
+
+      - name: Upload FF7R candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ff7r-sd865-budget75-512k
+          path: |
+            turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.zip
+            turnip_workdir/mesa-turnip-perf-sd865-ff7r-budget75-512k-main.manifest.json
+          if-no-files-found: error
