@@ -12,6 +12,10 @@ on:
       - "docs/FF7R_SD865_BUDGET_EXPERIMENT.md"
       - ".github/workflows/turnip_ff7r_budget_build.yml"
 
+concurrency:
+  group: ff7r-sd865-budget75-512k
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
