@@ -48,7 +48,7 @@ case "$perf_profile" in
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="SD865 A650 memory-pressure fix: release KGSL BOs when lazy sparse binding fails"
 		memory_audit=1
-		mesa_commit="${mesa_commit:-2e30bbd3b7d0de6f7f0a72ad40e951411aec5529}"
+		mesa_commit="${mesa_commit:-dc671cbf0f76194c72b621205b6cc84e1c914fad}"
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
@@ -188,7 +188,7 @@ build_lib_for_android(){
 		git apply --check "$patch"
 		git apply "$patch"
 		grep -q "kgsl_bo_finish(dev, bo);" src/freedreno/vulkan/tu_knl_kgsl.cc
-		grep -q "release BO when sparse bind allocation fails" "$patch"
+		grep -q "The kernel BO exists now, including on a later mapping failure." src/freedreno/vulkan/tu_knl_kgsl.cc
 	fi
 
 	if [ "$program_reference" = "1" ]; then
