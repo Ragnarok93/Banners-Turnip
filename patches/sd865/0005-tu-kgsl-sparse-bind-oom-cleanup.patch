@@ -23,8 +23,8 @@ This patch is intentionally limited to failure diagnostics and the sparse
 bind error unwind. It does not add retries or reclaim live allocations.
 
 ---
- src/freedreno/vulkan/tu_knl_kgsl.cc | 23 +++++++++++++++++-------
- 1 file changed, 16 insertions(+), 7 deletions(-)
+ src/freedreno/vulkan/tu_knl_kgsl.cc | 25 +++++++++++++++++-------
+ 1 file changed, 16 insertions(+), 9 deletions(-)
 
 diff --git a/src/freedreno/vulkan/tu_knl_kgsl.cc b/src/freedreno/vulkan/tu_knl_kgsl.cc
 index 3e34064c614d..000000000000 100644
