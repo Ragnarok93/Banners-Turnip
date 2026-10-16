@@ -17,8 +17,8 @@ The candidate changes only the runtime available-memory multiplier from 90% to 7
 ## Profile contents
 
 - Mesa source is pinned to `dc671cbf0f76194c72b621205b6cc84e1c914fad` for reproducibility.
-- Retains the existing 512 KiB Adreno 650 pipeline suballocator setting, so the comparison against `sd865-pipeline-512k` isolates the budget policy.
-- Applies `patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch`.
+- Uses the same 512 KiB Adreno 650 pipeline suballocator size as `sd865-pipeline-512k`, through a profile-specific minimal-context patch because the existing `0002` patch does not apply to the pinned Mesa snapshot.
+- Applies `patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch` and `patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch`.
 - Does not enable borrowed program state, forced SYSMEM, BO lifecycle warning logs, new allocation retries, or changes to DXVK.
 - Existing KGSL cleanup and audit profiles are not modified.
 
