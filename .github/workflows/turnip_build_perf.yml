@@ -11,6 +11,7 @@ on:
           - sd865-cortex-a77
           - sd865-program-reference
           - sd865-pipeline-256k
+          - sd865-memory-audit
           - sd865-pipeline-512k
           - sd865-sysmem-screen
           - sd865-combined-512k
@@ -190,6 +191,7 @@ jobs:
             case "${PERF_PROFILE}" in
               sd865-program-reference) printf "Candidate: borrowed graphics program-state references (lifetime-sensitive; experimental).\n\n" ;;
               sd865-pipeline-256k) printf "Candidate: 256 KiB A650 pipeline suballocation; comparison profile for the 512 KiB control.\n\n" ;;
+              sd865-memory-audit) printf "Pinned Mesa commit with KGSL sparse-bind BO cleanup on failed bind; experimental memory-pressure fix.\n\n" ;;
               sd865-pipeline-512k) printf "Candidate: 512 KiB A650 pipeline suballocation only; graphics program state remains owned.\n\n" ;;
               sd865-sysmem-screen) printf "Diagnostic control: forced SYSMEM only; not presumed faster.\n\n" ;;
               sd865-combined-512k) printf "Combined candidate: borrowed program state + 512 KiB pipeline suballocation.\n\n" ;;
