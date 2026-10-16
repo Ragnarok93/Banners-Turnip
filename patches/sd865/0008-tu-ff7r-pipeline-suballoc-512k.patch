@@ -3,13 +3,10 @@ From: OpenAI <noreply@openai.com>
 Date: Fri, 16 Oct 2026 00:00:00 +0000
 Subject: [PATCH] tu: use 512 KiB pipeline BOs in FF7R SD865 profile
 
-The existing 512 KiB profile patch was authored against a different Mesa
-source layout and does not apply to the pinned FF7R experiment commit.
-Keep that existing profile patch unchanged and apply the same narrowly
-scoped A650 suballocator-size change with minimal context for this pinned
-source profile.
-
-No other GPU, rendering mode, or program-state behavior is changed.
+Use a deliberately narrow hunk around the suballocator size argument.
+The pinned Mesa revision has a different allocation-flags expression than
+the generic 512 KiB profile patch, so do not include that unrelated expression
+as patch context. The change remains limited to Adreno 650.
 
 ---
  src/freedreno/vulkan/tu_device.cc | 3 ++-
@@ -18,14 +15,8 @@ No other GPU, rendering mode, or program-state behavior is changed.
 diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
 --- a/src/freedreno/vulkan/tu_device.cc
 +++ b/src/freedreno/vulkan/tu_device.cc
-@@ -3057,7 +3057,8 @@
-       global_size += TU_BORDER_COLOR_COUNT * sizeof(struct bcolor_entry);
-
+@@ -3057,2 +3057,3 @@
     tu_bo_suballocator_init(
 -      &device->pipeline_suballoc, device, 128 * 1024,
 +      &device->pipeline_suballoc, device,
 +      (fd_dev_gpu_id(&physical_device->dev_id) == 650 ? 512 : 128) * 1024,
-       (enum tu_bo_alloc_flags) (TU_BO_ALLOC_GPU_READ_ONLY |
-                                 TU_BO_ALLOC_ALLOW_DUMP |
-                                 TU_BO_ALLOC_INTERNAL_RESOURCE),
-       "pipeline_suballoc");
