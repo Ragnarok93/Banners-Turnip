@@ -7,7 +7,7 @@ on:
       - feature/ff7r-a650-budget-aware-20261016
     paths:
       - "build_turnip_perf.sh"
-      - "patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch"
+      - "patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch"
       - "patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch"
       - "docs/FF7R_SD865_BUDGET_EXPERIMENT.md"
       - ".github/workflows/turnip_ff7r_budget_build.yml"
@@ -54,10 +54,10 @@ jobs:
           assert m["profile"] == "sd865-ff7r-budget75-512k", m
           assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
           assert m["pipelineSuballocA650KiB"] == 512, m
-          assert m["pipelineSuballocPatchApplied"] in (True, 1), m
+          assert m["ff7rPipelinePatchApplied"] in (True, 1), m
           assert m["ff7rConservativeBudgetPatchApplied"] in (True, 1), m
           assert "patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch" in m["appliedPatches"], m
-          assert "patches/sd865/0002-tu-a650-pipeline-suballoc-512k.patch" in m["appliedPatches"], m
+          assert "patches/sd865/0008-tu-ff7r-pipeline-suballoc-512k.patch" in m["appliedPatches"], m
           assert m["programReference"] in (False, 0), m
           assert m["renderModeA650"] == "auto", m
           print("Verified pinned Mesa source, 512 KiB control setting, conservative budget patch, and manifest.")
