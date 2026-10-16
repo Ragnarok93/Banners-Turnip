@@ -48,7 +48,7 @@ case "$perf_profile" in
 		cpu_tune_flags="-mtune=cortex-a77"
 		perf_description="SD865 A650 memory-pressure fix: release KGSL BOs when lazy sparse binding fails"
 		memory_audit=1
-		mesa_commit="${mesa_commit:-dc671cbf0f76194c72b621205b6cc84e1c914fad}"
+		mesa_commit="dc671cbf0f76194c72b621205b6cc84e1c914fad"
 		sdkver="29"
 		platform_sdk="$sdkver"
 		min_api="$sdkver"
