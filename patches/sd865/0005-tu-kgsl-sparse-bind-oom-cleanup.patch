@@ -26,7 +26,7 @@ replayable mapping path unchanged because kgsl_bo_user_map() already cleans
 up its BO on failure.
 
 This patch is intentionally limited to heap-budget accuracy, failure
- diagnostics, and the sparse-bind error unwind. It does not add retries or
+diagnostics, and the sparse-bind error unwind. It does not add retries or
 reclaim live allocations.
 
 ---
