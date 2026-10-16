@@ -326,7 +326,7 @@ EOF
 	patch_sep=''
 	if [ "$memory_audit" = "1" ]; then
 		APPLIED_PATCHES_JSON+="\"patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch\""
-		patch_sep=' ,'
+		patch_sep=','
 	fi
 	if [ "$program_reference" = "1" ]; then
 		APPLIED_PATCHES_JSON+="${patch_sep}\"patches/sd865/0001-tu-reference-bound-program-state.patch\""
