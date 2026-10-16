@@ -8,6 +8,7 @@ on:
     paths:
       - "build_turnip_perf.sh"
       - "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch"
+      - "patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch"
       - ".github/workflows/turnip_memory_audit_build.yml"
 
 permissions:
