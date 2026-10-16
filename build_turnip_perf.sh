@@ -247,9 +247,22 @@ PY
 	fi
 
 	if [ "$ff7r_budget" = "1" ]; then
-		budget_patch=../../patches/sd865/0007-tu-ff7r-conservative-memory-budget.patch
-		git apply --check "$budget_patch"
-		git apply "$budget_patch"
+		# Guarded semantic rewrite: only alter the pinned upstream 90% policy.
+		python3 - <<'PY'
+import re
+from pathlib import Path
+p = Path("src/freedreno/vulkan/tu_device.cc")
+s = p.read_text()
+target = "sys_available * 3 / 4"
+if target in s:
+    raise SystemExit("FF7R conservative budget change already present; refusing duplicate application")
+pattern = re.compile(r"sys_available\s*\*\s*9\s*/\s*10")
+s2, n = pattern.subn(target, s)
+if n != 1:
+    raise SystemExit(f"Expected exactly one upstream 90% budget expression, found {n}; source unchanged")
+p.write_text(s2)
+print("Applied guarded FF7R 75% available-memory budget change.")
+PY
 		grep -Fq "sys_available * 3 / 4" src/freedreno/vulkan/tu_device.cc
 	fi
 
