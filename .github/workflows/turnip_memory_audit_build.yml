@@ -50,7 +50,9 @@ jobs:
           assert m["memoryAuditPatchApplied"] in (True, 1), m
           assert m["mesaCommit"] == "dc671cbf0f76194c72b621205b6cc84e1c914fad", m
           assert "patches/sd865/0005-tu-kgsl-sparse-bind-oom-cleanup.patch" in m["appliedPatches"], m
-          print("Verified pinned Mesa SHA, applied memory patch, manifest, and archive.")
+          assert "patches/sd865/0006-tu-kgsl-bo-lifecycle-telemetry.patch" in m["appliedPatches"], m
+          assert m["memoryTelemetryPatchApplied"] in (True, 1), m
+          print("Verified pinned Mesa SHA, memory fixes, BO lifecycle telemetry, manifest, and archive.")
           PY
 
       - name: Upload diagnostic build
